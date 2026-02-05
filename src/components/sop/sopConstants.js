@@ -172,6 +172,7 @@ export const DEFAULT_STATUS = {
   nodeType: 'Normal',
   description: '',
   sortOrder: 1,
+  requiredFields: [],   // property keys that must be filled for the object to be valid in this status
 }
 
 export const DEFAULT_ROLE = {
@@ -207,6 +208,7 @@ export function parseStateMachineToVisual(jsonStr) {
         nodeType: st.nodeType || 'Normal',
         description: st.description || '',
         sortOrder: st.sortOrder || i + 1,
+        requiredFields: st.requiredFields || [],
       })) : [
         { name: 'New', nodeType: 'Start', description: 'Initial status', sortOrder: 1 },
         { name: 'Completed', nodeType: 'Terminal', description: 'Workflow complete', sortOrder: 2 },
@@ -261,6 +263,7 @@ export function serializeStateMachineToJson(vs) {
       nodeType: s.nodeType,
       description: s.description || undefined,
       sortOrder: i + 1,
+      ...(s.requiredFields?.length > 0 ? { requiredFields: s.requiredFields } : {}),
     })),
     connectors: vs.connectors.map(c => ({
       name: c.name,

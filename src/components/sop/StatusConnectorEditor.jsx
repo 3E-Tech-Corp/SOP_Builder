@@ -294,6 +294,11 @@ const StatusConnectorEditor = ({ visualState, onChange, availableSOPs = [], onNa
                     <span className={`text-xs px-2 py-0.5 rounded-full ${colors.light} ${colors.text} font-medium`}>
                       {status.nodeType}
                     </span>
+                    {(status.requiredFields?.length || 0) > 0 && (
+                      <span className="text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full hidden sm:inline">
+                        {status.requiredFields.length} required
+                      </span>
+                    )}
                     <span className="text-xs text-gray-400 hidden sm:inline">
                       {incoming > 0 && `${incoming} in`}{incoming > 0 && outgoing > 0 && ' · '}{outgoing > 0 && `${outgoing} out`}
                     </span>
@@ -336,6 +341,41 @@ const StatusConnectorEditor = ({ visualState, onChange, availableSOPs = [], onNa
                           className={inp} />
                       </div>
                     </div>
+
+                    {/* Required fields for this status */}
+                    {allProperties.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                          Required Fields <span className="font-normal text-gray-400">— must be filled for the object to be valid in this status</span>
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allProperties.map(prop => {
+                            const selected = (status.requiredFields || []).includes(prop.key)
+                            return (
+                              <button key={prop.key} type="button"
+                                onClick={() => {
+                                  const fields = status.requiredFields || []
+                                  const updated = fields.includes(prop.key)
+                                    ? fields.filter(f => f !== prop.key)
+                                    : [...fields, prop.key]
+                                  updateStatus(idx, 'requiredFields', updated)
+                                }}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                                  selected
+                                    ? 'bg-orange-100 text-orange-700 border border-orange-300'
+                                    : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
+                                }`}>
+                                {prop.label || prop.key}
+                                {selected && <X className="w-3 h-3" />}
+                              </button>
+                            )
+                          })}
+                          {(status.requiredFields || []).length === 0 && (
+                            <span className="text-xs text-gray-400 py-0.5">No field requirements</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Quick-add connector from this status */}
                     {vs.statuses.length > 1 && (
