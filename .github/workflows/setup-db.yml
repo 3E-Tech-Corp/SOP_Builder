@@ -13,7 +13,7 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Running 001-initial-schema.sql on SQL Server..."
-          Invoke-Sqlcmd -InputFile "backend\SopBuilder.Api\Database\001-initial-schema.sql" -ServerInstance "localhost" -TrustServerCertificate -Verbose
+          Invoke-Sqlcmd -InputFile "backend\SopBuilder.Api\Database\001-initial-schema.sql" -ServerInstance "localhost" -Verbose
           Write-Host "Schema created successfully!"
 
       - name: Generate BCrypt Hash and Update Admin
@@ -48,7 +48,7 @@ jobs:
           Write-Host "Generated BCrypt hash: $hash"
           
           $sql = "USE [SOP_Builder]; UPDATE [dbo].[Users] SET PasswordHash = '$hash' WHERE Email = 'admin@sopbuilder.com';"
-          Invoke-Sqlcmd -Query $sql -ServerInstance "localhost" -TrustServerCertificate
+          Invoke-Sqlcmd -Query $sql -ServerInstance "localhost" 
           Write-Host "Admin password hash updated!"
 
       - name: Create appsettings.Production.json
@@ -87,9 +87,9 @@ jobs:
       - name: Verify
         shell: powershell
         run: |
-          $result = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT COUNT(*) as TableCount FROM sys.tables;" -ServerInstance "localhost" -TrustServerCertificate
+          $result = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT COUNT(*) as TableCount FROM sys.tables;" -ServerInstance "localhost" 
           Write-Host "Tables in SOP_Builder: $($result.TableCount)"
           
-          $users = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT Email, Role FROM Users;" -ServerInstance "localhost" -TrustServerCertificate
+          $users = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT Email, Role FROM Users;" -ServerInstance "localhost" 
           Write-Host "Users:"
           $users | Format-Table
