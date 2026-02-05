@@ -40,6 +40,52 @@ export const SOP_CATEGORIES = [
   { value: 'Custom', label: 'Custom' },
 ]
 
+// ── Property types for object schema ──
+export const PROPERTY_TYPES = [
+  { value: 'Text', label: 'Text' },
+  { value: 'Number', label: 'Number' },
+  { value: 'Date', label: 'Date' },
+  { value: 'DateTime', label: 'Date & Time' },
+  { value: 'Boolean', label: 'Yes / No' },
+  { value: 'Select', label: 'Dropdown Select' },
+  { value: 'MultiSelect', label: 'Multi-Select' },
+  { value: 'Email', label: 'Email' },
+  { value: 'URL', label: 'URL' },
+  { value: 'Phone', label: 'Phone' },
+  { value: 'Currency', label: 'Currency' },
+  { value: 'Percent', label: 'Percent' },
+  { value: 'TextArea', label: 'Long Text' },
+  { value: 'File', label: 'File / Attachment' },
+  { value: 'User', label: 'User / Person' },
+  { value: 'Reference', label: 'Reference (to another object)' },
+]
+
+// Built-in object fields (always present, cannot be removed)
+export const BUILT_IN_PROPERTIES = [
+  { key: 'id', label: 'ID', type: 'Text', builtIn: true, required: true, description: 'Unique identifier' },
+  { key: 'type', label: 'Type', type: 'Text', builtIn: true, required: true, description: 'Object type name' },
+  { key: 'name', label: 'Name', type: 'Text', builtIn: true, required: true, description: 'Display name' },
+  { key: 'status', label: 'Status', type: 'Select', builtIn: true, required: true, description: 'Current workflow status',
+    options: ['New', 'In Progress', 'Pending Review', 'Approved', 'Rejected', 'Completed', 'Cancelled'] },
+]
+
+export const DEFAULT_PROPERTY = {
+  key: '',
+  label: '',
+  type: 'Text',
+  required: false,
+  description: '',
+  defaultValue: '',
+  options: [],      // for Select / MultiSelect
+  builtIn: false,
+}
+
+export const DEFAULT_OBJECT_SCHEMA = {
+  typeName: '',
+  typeDescription: '',
+  properties: [],   // user-defined only; built-ins are always prepended
+}
+
 // ── Priority levels ──
 export const PRIORITY_LEVELS = ['Low', 'Medium', 'High', 'Critical']
 
@@ -131,6 +177,20 @@ export function parseSOPToVisual(jsonStr) {
         label: t.label || '',
       })) : [],
       outcomes: Array.isArray(s.outcomes) ? s.outcomes : [],
+      objectSchema: s.objectSchema ? {
+        typeName: s.objectSchema.typeName || '',
+        typeDescription: s.objectSchema.typeDescription || '',
+        properties: Array.isArray(s.objectSchema.properties) ? s.objectSchema.properties.map(p => ({
+          key: p.key || '',
+          label: p.label || '',
+          type: p.type || 'Text',
+          required: p.required || false,
+          description: p.description || '',
+          defaultValue: p.defaultValue || '',
+          options: p.options || [],
+          builtIn: false,
+        })) : [],
+      } : { ...DEFAULT_OBJECT_SCHEMA },
       metadata: s.metadata || {},
     }
   } catch {
@@ -138,6 +198,7 @@ export function parseSOPToVisual(jsonStr) {
       steps: [{ ...DEFAULT_STEP }],
       transitions: [],
       outcomes: [],
+      objectSchema: { ...DEFAULT_OBJECT_SCHEMA },
       metadata: {},
     }
   }
@@ -161,6 +222,13 @@ export function serializeVisualToSOP(vs) {
     })),
     transitions: vs.transitions,
     ...(vs.outcomes?.length > 0 ? { outcomes: vs.outcomes } : {}),
+    ...(vs.objectSchema && (vs.objectSchema.typeName || vs.objectSchema.properties?.length > 0)
+      ? { objectSchema: {
+          typeName: vs.objectSchema.typeName,
+          typeDescription: vs.objectSchema.typeDescription || undefined,
+          properties: vs.objectSchema.properties,
+        } }
+      : {}),
     ...(vs.metadata && Object.keys(vs.metadata).length > 0 ? { metadata: vs.metadata } : {}),
   }
   return JSON.stringify(obj, null, 2)

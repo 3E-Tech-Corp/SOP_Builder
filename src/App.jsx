@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   ClipboardList, Plus, Save, Trash2, Edit2, Eye, X, Download, Upload,
-  FileJson, ChevronDown, Search, Copy, MoreVertical, FolderOpen, Box
+  FileJson, ChevronDown, Search, Copy, MoreVertical, FolderOpen, Box, Database
 } from 'lucide-react'
 import SOPWorkflowEditor from './components/sop/SOPWorkflowEditor'
 import { SOP_CATEGORIES } from './components/sop/sopConstants'
@@ -150,6 +150,20 @@ function App() {
       const parsed = JSON.parse(sop.structureJson)
       return parsed.steps?.length || 0
     } catch { return 0 }
+  }
+
+  const getObjectType = (sop) => {
+    try {
+      const parsed = JSON.parse(sop.structureJson)
+      return parsed.objectSchema?.typeName || null
+    } catch { return null }
+  }
+
+  const getPropertyCount = (sop) => {
+    try {
+      const parsed = JSON.parse(sop.structureJson)
+      return (parsed.objectSchema?.properties?.length || 0) + 4 // +4 for built-in fields
+    } catch { return 4 }
   }
 
   const getCategoryInfo = (cat) => SOP_CATEGORIES.find(c => c.value === cat) || { label: cat }
@@ -396,8 +410,13 @@ function App() {
                   <p className="text-sm text-gray-600 mb-3 line-clamp-2">{sop.description}</p>
                 )}
 
-                <div className="flex items-center gap-3 text-xs text-gray-500 mb-4">
+                <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 flex-wrap">
                   <span>{getStepCount(sop)} steps</span>
+                  {getObjectType(sop) && (
+                    <span className="inline-flex items-center gap-1 text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                      <Database className="w-3 h-3" /> {getObjectType(sop)} ({getPropertyCount(sop)} fields)
+                    </span>
+                  )}
                   {sop.owner && <span>• {sop.owner}</span>}
                   {sop.department && <span>• {sop.department}</span>}
                   {sops.some(other => {

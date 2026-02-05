@@ -12,9 +12,10 @@
  *   onNavigateToSOP: (sopId) => void — callback to navigate to a sub-SOP
  */
 import { useState, useCallback, useEffect } from 'react'
-import { Settings, Code } from 'lucide-react'
+import { Settings, Code, Database, ListOrdered } from 'lucide-react'
 import SOPStepEditor from './SOPStepEditor'
-import { parseSOPToVisual, serializeVisualToSOP } from './sopConstants'
+import ObjectSchemaEditor from './ObjectSchemaEditor'
+import { parseSOPToVisual, serializeVisualToSOP, DEFAULT_OBJECT_SCHEMA } from './sopConstants'
 
 export default function SOPWorkflowEditor({
   value = '{"steps":[],"transitions":[]}',
@@ -26,6 +27,7 @@ export default function SOPWorkflowEditor({
   onNavigateToSOP
 }) {
   const [editorMode, setEditorMode] = useState(mode === 'json' ? 'json' : 'visual')
+  const [visualTab, setVisualTab] = useState('steps') // 'schema' | 'steps'
   const [visualState, setVisualState] = useState(() => parseSOPToVisual(value))
   const [jsonText, setJsonText] = useState(value)
   const [jsonError, setJsonError] = useState(null)
@@ -96,16 +98,45 @@ export default function SOPWorkflowEditor({
         </div>
       )}
 
+      {/* Visual sub-tabs */}
+      {editorMode === 'visual' && (
+        <div className="bg-white border-b border-gray-200 px-4 flex items-center gap-1 flex-shrink-0">
+          <button type="button" onClick={() => setVisualTab('schema')}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              visualTab === 'schema'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            <Database className="w-3.5 h-3.5" /> Object Schema
+          </button>
+          <button type="button" onClick={() => setVisualTab('steps')}
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              visualTab === 'steps'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
+            <ListOrdered className="w-3.5 h-3.5" /> Workflow Steps
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         {editorMode === 'visual' ? (
           <div className={pad}>
             <div className="max-w-4xl mx-auto">
-              <SOPStepEditor
-                visualState={visualState}
-                onChange={handleVisualChange}
-                availableSOPs={availableSOPs}
-                onNavigateToSOP={onNavigateToSOP}
-              />
+              {visualTab === 'schema' ? (
+                <ObjectSchemaEditor
+                  schema={visualState.objectSchema || { ...DEFAULT_OBJECT_SCHEMA }}
+                  onChange={(newSchema) => handleVisualChange({ ...visualState, objectSchema: newSchema })}
+                />
+              ) : (
+                <SOPStepEditor
+                  visualState={visualState}
+                  onChange={handleVisualChange}
+                  availableSOPs={availableSOPs}
+                  onNavigateToSOP={onNavigateToSOP}
+                />
+              )}
             </div>
           </div>
         ) : (
