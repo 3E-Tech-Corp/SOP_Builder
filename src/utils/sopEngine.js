@@ -1,4 +1,4 @@
-// SOP Engine — state machine logic for validation, transitions, and progress
+// SOP Engine — state machine logic with role/property/document validation
 
 export function getStartNode(sop) {
   return sop.nodes.find(n => n.type === 'start');
@@ -19,6 +19,8 @@ export function getAvailableActions(sop, currentNodeId) {
       edgeId: edge.id,
       label: edge.data?.label || 'Continue',
       description: edge.data?.description || '',
+      requiredRoles: edge.data?.requiredRoles || [],
+      requiredDocuments: edge.data?.requiredDocuments || [],
       requiredFields: edge.data?.requiredFields || [],
       targetNodeId: edge.target,
       targetNode: sop.nodes.find(n => n.id === edge.target),
@@ -26,7 +28,57 @@ export function getAvailableActions(sop, currentNodeId) {
     }));
 }
 
-export function transition(sop, testObject, edgeId, fieldValues = {}) {
+// ── Validation helpers ──
+
+export function checkRoleAccess(action, currentRole) {
+  if (!action.requiredRoles || action.requiredRoles.length === 0) return { allowed: true };
+  const allowed = action.requiredRoles.includes(currentRole);
+  return {
+    allowed,
+    message: allowed
+      ? null
+      : `Requires one of: ${action.requiredRoles.join(', ')}. Current role: ${currentRole}`,
+  };
+}
+
+export function checkRequiredFields(action, fieldValues) {
+  const missing = [];
+  for (const field of (action.requiredFields || [])) {
+    const val = fieldValues[field.name];
+    if (val === undefined || val === null || String(val).trim() === '') {
+      missing.push(field.name);
+    }
+  }
+  return { valid: missing.length === 0, missing };
+}
+
+export function checkRequiredDocuments(action, attachedDocs) {
+  const missing = [];
+  for (const doc of (action.requiredDocuments || [])) {
+    const found = attachedDocs.some(d => d.name === doc.name);
+    if (!found) missing.push(doc.name);
+  }
+  return { valid: missing.length === 0, missing };
+}
+
+export function checkStatusProperties(sop, nodeId, objectProperties) {
+  const node = getNodeById(sop, nodeId);
+  if (!node) return { valid: true, missing: [] };
+  const reqProps = node.data?.requiredProperties || [];
+  const missing = [];
+  for (const prop of reqProps) {
+    if (!prop.required) continue;
+    const val = objectProperties[prop.name];
+    if (val === undefined || val === null || String(val).trim() === '') {
+      missing.push(prop.name);
+    }
+  }
+  return { valid: missing.length === 0, missing };
+}
+
+// ── Transition ──
+
+export function transition(sop, testObject, edgeId, fieldValues = {}, documents = [], actor = 'Test User', role = 'Admin') {
   const edge = sop.edges.find(e => e.id === edgeId);
   if (!edge) throw new Error('Invalid action');
   if (edge.source !== testObject.currentNodeId) throw new Error('Action not available from current state');
@@ -45,38 +97,35 @@ export function transition(sop, testObject, edgeId, fieldValues = {}) {
     action: edge.data?.label || 'Continue',
     toNodeId: toNode.id,
     toStatus: toNode.data?.label || toNode.id,
+    actor,
+    role,
     fieldValues,
+    documentsAttached: documents.map(d => d.name),
     notifications: [],
   };
 
   // Collect notifications
   const notifications = [];
 
-  // Edge trigger notification
   if (edge.data?.notifications?.onTrigger?.enabled) {
     notifications.push({
-      type: 'action',
-      event: 'onTrigger',
+      type: 'action-trigger', event: 'onTrigger',
       ...edge.data.notifications.onTrigger,
       context: { action: edge.data?.label, fromStatus: fromNode.data?.label, toStatus: toNode.data?.label },
     });
   }
 
-  // From-node exit notification
   if (fromNode.data?.notifications?.onExit?.enabled) {
     notifications.push({
-      type: 'node-exit',
-      event: 'onExit',
+      type: 'node-exit', event: 'onExit',
       ...fromNode.data.notifications.onExit,
       context: { nodeLabel: fromNode.data?.label },
     });
   }
 
-  // To-node enter notification
   if (toNode.data?.notifications?.onEnter?.enabled) {
     notifications.push({
-      type: 'node-enter',
-      event: 'onEnter',
+      type: 'node-enter', event: 'onEnter',
       ...toNode.data.notifications.onEnter,
       context: { nodeLabel: toNode.data?.label },
     });
@@ -84,9 +133,17 @@ export function transition(sop, testObject, edgeId, fieldValues = {}) {
 
   auditEntry.notifications = notifications;
 
+  // Merge field values into object properties
+  const updatedProperties = { ...testObject.properties };
+  for (const [key, value] of Object.entries(fieldValues)) {
+    if (value !== undefined && value !== '') updatedProperties[key] = value;
+  }
+
   const updatedObject = {
     ...testObject,
     currentNodeId: toNode.id,
+    properties: updatedProperties,
+    documents: [...(testObject.documents || []), ...documents.map(d => ({ ...d, actionId: edge.id, attachedAt: now }))],
     path: [...(testObject.path || []), { nodeId: toNode.id, edgeId: edge.id, timestamp: now }],
     audit: [...(testObject.audit || []), auditEntry],
     isComplete: toNode.type === 'end',
@@ -95,19 +152,20 @@ export function transition(sop, testObject, edgeId, fieldValues = {}) {
   return { updatedObject, auditEntry, notifications };
 }
 
+// ── Progress ──
+
 export function calculateProgress(sop, testObject) {
   if (!testObject.path || testObject.path.length === 0) {
     return { steps: 0, percentage: 0 };
   }
 
-  // Simple heuristic: find shortest path from start to any end
   const endNodes = getEndNodes(sop);
   if (endNodes.length === 0) return { steps: testObject.path.length, percentage: 50 };
 
-  // BFS to find shortest path length from start to any end
   const startNode = getStartNode(sop);
   if (!startNode) return { steps: testObject.path.length, percentage: 50 };
 
+  // BFS shortest path from start to any end
   const queue = [{ nodeId: startNode.id, depth: 0 }];
   const visited = new Set();
   let minPathLength = Infinity;
@@ -116,13 +174,11 @@ export function calculateProgress(sop, testObject) {
     const { nodeId, depth } = queue.shift();
     if (visited.has(nodeId)) continue;
     visited.add(nodeId);
-
     const node = getNodeById(sop, nodeId);
     if (node && node.type === 'end') {
       minPathLength = Math.min(minPathLength, depth);
       continue;
     }
-
     const edges = sop.edges.filter(e => e.source === nodeId);
     for (const edge of edges) {
       if (!visited.has(edge.target)) {
@@ -132,16 +188,15 @@ export function calculateProgress(sop, testObject) {
   }
 
   if (minPathLength === Infinity) minPathLength = sop.nodes.length;
-
   const currentSteps = testObject.path.length;
-  const percentage = Math.min(100, Math.round((currentSteps / minPathLength) * 100));
-
+  const percentage = testObject.isComplete ? 100 : Math.min(99, Math.round((currentSteps / minPathLength) * 100));
   return { steps: currentSteps, total: minPathLength, percentage };
 }
 
+// ── Validation ──
+
 export function validateSOP(sop) {
   const errors = [];
-
   const startNodes = sop.nodes.filter(n => n.type === 'start');
   if (startNodes.length === 0) errors.push('SOP must have at least one Start node');
   if (startNodes.length > 1) errors.push('SOP should have only one Start node');
@@ -149,7 +204,6 @@ export function validateSOP(sop) {
   const endNodes = sop.nodes.filter(n => n.type === 'end');
   if (endNodes.length === 0) errors.push('SOP must have at least one End node');
 
-  // Check for orphaned nodes (no connections)
   for (const node of sop.nodes) {
     if (node.type === 'start') {
       const outEdges = sop.edges.filter(e => e.source === node.id);
@@ -169,9 +223,19 @@ export function validateSOP(sop) {
   return { valid: errors.length === 0, errors };
 }
 
+// ── Object creation ──
+
 export function createTestObject(sop, name, color) {
   const startNode = getStartNode(sop);
   if (!startNode) throw new Error('SOP has no Start node');
+
+  // Build default properties from schema
+  const properties = {};
+  if (sop.objectSchema?.properties) {
+    for (const prop of sop.objectSchema.properties) {
+      properties[prop.name] = prop.defaultValue || '';
+    }
+  }
 
   return {
     id: crypto.randomUUID(),
@@ -179,6 +243,8 @@ export function createTestObject(sop, name, color) {
     name: name || `Object ${Date.now().toString(36).toUpperCase()}`,
     color: color || getRandomColor(),
     currentNodeId: startNode.id,
+    properties,
+    documents: [],
     path: [{ nodeId: startNode.id, edgeId: null, timestamp: new Date().toISOString() }],
     audit: [],
     isComplete: false,

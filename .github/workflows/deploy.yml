@@ -1,0 +1,27 @@
+name: Deploy to IIS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    env:
+      SITE_NAME: sop.synthia.bot
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Frontend
+        shell: powershell
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to IIS
+        shell: powershell
+        run: |
+          .\Deployment\deploy-iis.ps1 `
+            -SiteName "${{ env.SITE_NAME }}" `
+            -FrontendSource "dist"

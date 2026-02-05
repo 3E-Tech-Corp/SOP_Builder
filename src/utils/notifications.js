@@ -1,13 +1,17 @@
-// Notification preview/simulation utilities
+// Notification preview / simulation utilities
 
-export function formatNotification(notification, objectName, fromStatus, toStatus, action) {
+export function formatNotification(notification, context) {
+  const { objectName, objectId, fromStatus, toStatus, action, actor, role } = context;
   const vars = {
     '{objectName}': objectName || 'Unknown',
+    '{objectId}': objectId || 'N/A',
     '{fromStatus}': fromStatus || 'N/A',
     '{toStatus}': toStatus || 'N/A',
+    '{status}': toStatus || fromStatus || 'N/A',
     '{action}': action || 'N/A',
+    '{actor}': actor || 'Test User',
+    '{role}': role || 'N/A',
     '{timestamp}': new Date().toLocaleString(),
-    '{actor}': 'Test User',
   };
 
   let template = notification.template || 'Status changed to {toStatus}';
@@ -27,20 +31,23 @@ export function formatNotification(notification, objectName, fromStatus, toStatu
       icon,
       channel: channelName,
       recipient: recipientName,
-      subject: `${objectName} moved to ${toStatus}`,
+      subject: `${objectName} → ${toStatus}`,
       body: template,
-      formatted: `${icon} ${channelName} to [${recipientName}]: ${objectName} → ${toStatus} — ${template}`,
+      formatted: `${icon} ${channelName} to [${recipientName}]: ${template}`,
     };
   });
 }
 
-export function generateNotificationPreviews(notifications, objectName) {
+export function generateNotificationPreviews(notifications, context) {
   const previews = [];
   for (const n of notifications) {
-    const fromStatus = n.context?.fromStatus || n.context?.nodeLabel || 'N/A';
-    const toStatus = n.context?.toStatus || n.context?.nodeLabel || 'N/A';
-    const action = n.context?.action || 'Transition';
-    const formatted = formatNotification(n, objectName, fromStatus, toStatus, action);
+    const ctx = {
+      ...context,
+      fromStatus: n.context?.fromStatus || n.context?.nodeLabel || context.fromStatus || 'N/A',
+      toStatus: n.context?.toStatus || n.context?.nodeLabel || context.toStatus || 'N/A',
+      action: n.context?.action || context.action || 'Transition',
+    };
+    const formatted = formatNotification(n, ctx);
     previews.push(...formatted);
   }
   return previews;
