@@ -59,7 +59,7 @@ jobs:
             $json | Out-File -FilePath $prodConfig -Encoding UTF8
             Write-Host "Created appsettings.Production.json"
           } else {
-            Write-Host "Already exists — skipping"
+            Write-Host "Already exists - skipping"
           }
 
       - name: Restart App Pool
