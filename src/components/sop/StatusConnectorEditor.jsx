@@ -12,11 +12,12 @@ import { useState } from 'react'
 import {
   Plus, Trash2, ChevronDown, ChevronUp, ArrowRight, Zap, Circle,
   Play, Square, Clock, User, FileText, Box, ExternalLink, Settings,
-  AlertTriangle, CheckCircle, GitBranch, Pause, XCircle, Shield, Users, X
+  AlertTriangle, CheckCircle, GitBranch, Pause, XCircle, Shield, Users, X,
+  Paperclip
 } from 'lucide-react'
 import {
   STATUS_NODE_TYPES, STATUS_NODE_COLORS, CONNECTOR_TYPES,
-  DEFAULT_STATUS, DEFAULT_CONNECTOR, DEFAULT_ROLE,
+  DEFAULT_STATUS, DEFAULT_CONNECTOR, DEFAULT_ROLE, DEFAULT_REQUIRED_DOCUMENT,
 } from './sopConstants'
 
 const STATUS_ICONS = {
@@ -163,6 +164,25 @@ const StatusConnectorEditor = ({ visualState, onChange, availableSOPs = [], onNa
       ? roles.filter(r => r !== roleName)
       : [...roles, roleName]
     updateConnector(connIdx, 'allowedRoles', updated)
+  }
+
+  // ── Required document helpers ──
+  const addRequiredDoc = (connIdx) => {
+    const c = vs.connectors[connIdx]
+    const docs = [...(c.requiredDocuments || []), { ...DEFAULT_REQUIRED_DOCUMENT, name: `Document ${(c.requiredDocuments?.length || 0) + 1}` }]
+    updateConnector(connIdx, 'requiredDocuments', docs)
+  }
+
+  const updateRequiredDoc = (connIdx, docIdx, field, value) => {
+    const c = vs.connectors[connIdx]
+    const docs = [...(c.requiredDocuments || [])]
+    docs[docIdx] = { ...docs[docIdx], [field]: value }
+    updateConnector(connIdx, 'requiredDocuments', docs)
+  }
+
+  const removeRequiredDoc = (connIdx, docIdx) => {
+    const c = vs.connectors[connIdx]
+    updateConnector(connIdx, 'requiredDocuments', c.requiredDocuments.filter((_, i) => i !== docIdx))
   }
 
   // Toggle required field on a connector
@@ -465,6 +485,12 @@ const StatusConnectorEditor = ({ visualState, onChange, availableSOPs = [], onNa
                           {conn.allowedRoles.join(', ')}
                         </span>
                       )}
+                      {conn.requiredDocuments?.length > 0 && (
+                        <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded hidden sm:inline flex items-center gap-1">
+                          <Paperclip className="w-3 h-3" />
+                          {conn.requiredDocuments.length} doc{conn.requiredDocuments.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button type="button" onClick={e => { e.stopPropagation(); removeConnector(idx) }}
@@ -599,6 +625,55 @@ const StatusConnectorEditor = ({ visualState, onChange, availableSOPs = [], onNa
                           </div>
                         </div>
                       )}
+
+                      {/* Required documents */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                            <Paperclip className="w-3.5 h-3.5" /> Required Documents ({conn.requiredDocuments?.length || 0})
+                          </label>
+                          <button type="button" onClick={() => addRequiredDoc(idx)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 border border-gray-300 transition-colors">
+                            <Plus className="w-3 h-3" /> Add
+                          </button>
+                        </div>
+                        {(conn.requiredDocuments?.length || 0) === 0 ? (
+                          <p className="text-xs text-gray-400">No documents required for this action.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {conn.requiredDocuments.map((doc, docIdx) => (
+                              <div key={docIdx} className="flex items-start gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                                <Paperclip className="w-4 h-4 text-gray-400 mt-1.5 flex-shrink-0" />
+                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+                                  <input type="text" value={doc.name}
+                                    onChange={e => updateRequiredDoc(idx, docIdx, 'name', e.target.value)}
+                                    placeholder="Document name (e.g. Invoice Copy)"
+                                    className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500" />
+                                  <input type="text" value={doc.description}
+                                    onChange={e => updateRequiredDoc(idx, docIdx, 'description', e.target.value)}
+                                    placeholder="Description (optional)"
+                                    className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500" />
+                                  <input type="text" value={doc.acceptedTypes}
+                                    onChange={e => updateRequiredDoc(idx, docIdx, 'acceptedTypes', e.target.value)}
+                                    placeholder="Accepted types (e.g. pdf,jpg,png)"
+                                    className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 font-mono" />
+                                  <div className="flex items-center gap-2">
+                                    <input type="number" min={0} value={doc.maxSizeMB}
+                                      onChange={e => updateRequiredDoc(idx, docIdx, 'maxSizeMB', parseInt(e.target.value) || 0)}
+                                      placeholder="0"
+                                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500" />
+                                    <span className="text-xs text-gray-500">MB max {doc.maxSizeMB === 0 && '(no limit)'}</span>
+                                  </div>
+                                </div>
+                                <button type="button" onClick={() => removeRequiredDoc(idx, docIdx)}
+                                  className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0 transition-colors mt-0.5">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
                       {/* SubSOP reference */}
                       {conn.connectorType === 'SubSOP' && (

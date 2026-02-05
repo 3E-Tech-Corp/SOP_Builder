@@ -191,7 +191,15 @@ export const DEFAULT_CONNECTOR = {
   condition: '',
   estimatedMinutes: 0,
   requiredFields: [],   // property keys that must be filled to perform this action
+  requiredDocuments: [], // documents that must be attached to complete the action
   subSopId: null,
+}
+
+export const DEFAULT_REQUIRED_DOCUMENT = {
+  name: '',
+  description: '',
+  acceptedTypes: '',  // e.g. "pdf,jpg,png" or empty for any
+  maxSizeMB: 0,       // 0 = no limit
 }
 
 // Parse state-machine model from JSON
@@ -224,6 +232,12 @@ export function parseStateMachineToVisual(jsonStr) {
         condition: c.condition || '',
         estimatedMinutes: c.estimatedMinutes || 0,
         requiredFields: c.requiredFields || [],
+        requiredDocuments: Array.isArray(c.requiredDocuments) ? c.requiredDocuments.map(d => ({
+          name: d.name || '',
+          description: d.description || '',
+          acceptedTypes: d.acceptedTypes || '',
+          maxSizeMB: d.maxSizeMB || 0,
+        })) : [],
         subSopId: c.subSopId || null,
       })) : [],
       objectSchema: s.objectSchema ? {
@@ -276,6 +290,12 @@ export function serializeStateMachineToJson(vs) {
       condition: c.condition || undefined,
       estimatedMinutes: c.estimatedMinutes || undefined,
       ...(c.requiredFields?.length > 0 ? { requiredFields: c.requiredFields } : {}),
+      ...(c.requiredDocuments?.length > 0 ? { requiredDocuments: c.requiredDocuments.map(d => ({
+        name: d.name,
+        description: d.description || undefined,
+        acceptedTypes: d.acceptedTypes || undefined,
+        maxSizeMB: d.maxSizeMB || undefined,
+      })) } : {}),
       ...(c.connectorType === 'SubSOP' && c.subSopId ? { subSopId: c.subSopId } : {}),
     })),
     ...(vs.objectSchema && (vs.objectSchema.typeName || vs.objectSchema.properties?.length > 0)
