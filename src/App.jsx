@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react'
 import {
   ClipboardList, Plus, Save, Trash2, Edit2, Eye, X, Download, Upload,
-  FileJson, ChevronDown, Search, Copy, MoreVertical, FolderOpen
+  FileJson, ChevronDown, Search, Copy, MoreVertical, FolderOpen, Box
 } from 'lucide-react'
 import SOPWorkflowEditor from './components/sop/SOPWorkflowEditor'
-import { SOP_CATEGORIES, parseSOPToVisual } from './components/sop/sopConstants'
+import { SOP_CATEGORIES } from './components/sop/sopConstants'
 
 const DEFAULT_SOP_STRUCTURE = JSON.stringify({
   steps: [{
@@ -154,6 +154,35 @@ function App() {
 
   const getCategoryInfo = (cat) => SOP_CATEGORIES.find(c => c.value === cat) || { label: cat }
 
+  // Available SOPs for SubSOP references (all except the one being edited)
+  const availableSOPs = sops
+    .filter(s => s.id !== formData.id)
+    .map(s => ({
+      id: s.id,
+      name: s.name,
+      category: getCategoryInfo(s.category).label,
+      stepCount: getStepCount(s),
+    }))
+
+  // Navigate to a sub-SOP for editing
+  const handleNavigateToSOP = (sopId) => {
+    // Save current edits first
+    if (formData.name.trim()) {
+      if (editing === 'new') {
+        setSops(prev => [...prev, { ...formData }])
+      } else {
+        setSops(prev => prev.map(s => s.id === formData.id ? { ...formData } : s))
+      }
+    }
+    // Open the target SOP
+    const target = sops.find(s => String(s.id) === String(sopId))
+    if (target) {
+      setFormData({ ...target })
+      setEditing('edit')
+      notify(`Opened sub-SOP: ${target.name}`)
+    }
+  }
+
   // ══ EDITOR VIEW ══
   if (editing) {
     return (
@@ -253,6 +282,8 @@ function App() {
           <SOPWorkflowEditor
             value={formData.structureJson}
             onChange={(json) => setFormData({ ...formData, structureJson: json })}
+            availableSOPs={availableSOPs}
+            onNavigateToSOP={handleNavigateToSOP}
           />
         </div>
 
@@ -369,6 +400,16 @@ function App() {
                   <span>{getStepCount(sop)} steps</span>
                   {sop.owner && <span>• {sop.owner}</span>}
                   {sop.department && <span>• {sop.department}</span>}
+                  {sops.some(other => {
+                    try {
+                      const parsed = JSON.parse(other.structureJson)
+                      return parsed.steps?.some(s => String(s.subSopId) === String(sop.id))
+                    } catch { return false }
+                  }) && (
+                    <span className="inline-flex items-center gap-1 text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">
+                      <Box className="w-3 h-3" /> Used as sub-SOP
+                    </span>
+                  )}
                 </div>
 
                 {sop.tags && (

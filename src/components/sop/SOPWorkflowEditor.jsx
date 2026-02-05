@@ -8,6 +8,8 @@
  *   mode: 'visual' | 'json' | 'both' (default: 'both')
  *   className: string
  *   compact: boolean
+ *   availableSOPs: [{ id, name, category, stepCount }] — SOPs available for SubSOP references
+ *   onNavigateToSOP: (sopId) => void — callback to navigate to a sub-SOP
  */
 import { useState, useCallback, useEffect } from 'react'
 import { Settings, Code } from 'lucide-react'
@@ -19,7 +21,9 @@ export default function SOPWorkflowEditor({
   onChange,
   mode = 'both',
   className = '',
-  compact = false
+  compact = false,
+  availableSOPs = [],
+  onNavigateToSOP
 }) {
   const [editorMode, setEditorMode] = useState(mode === 'json' ? 'json' : 'visual')
   const [visualState, setVisualState] = useState(() => parseSOPToVisual(value))
@@ -99,6 +103,8 @@ export default function SOPWorkflowEditor({
               <SOPStepEditor
                 visualState={visualState}
                 onChange={handleVisualChange}
+                availableSOPs={availableSOPs}
+                onNavigateToSOP={onNavigateToSOP}
               />
             </div>
           </div>

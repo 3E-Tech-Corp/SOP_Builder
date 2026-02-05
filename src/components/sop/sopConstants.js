@@ -4,7 +4,7 @@
  */
 import {
   ClipboardList, CheckCircle, GitBranch, Bell, FileText, Users,
-  Clock, ShieldCheck, MessageSquare, Zap, AlertTriangle, Send
+  Clock, ShieldCheck, MessageSquare, Zap, AlertTriangle, Send, Box
 } from 'lucide-react'
 
 // ── Step type definitions ──
@@ -21,6 +21,7 @@ export const STEP_TYPES = [
   { value: 'Automated', label: 'Automated', icon: Zap, color: 'cyan', description: 'System-triggered automatic action' },
   { value: 'Escalation', label: 'Escalation', icon: AlertTriangle, color: 'rose', description: 'Escalate to higher authority' },
   { value: 'Handoff', label: 'Handoff', icon: Send, color: 'emerald', description: 'Transfer to another team/person' },
+  { value: 'SubSOP', label: 'Sub-SOP', icon: Box, color: 'violet', description: 'Nest another SOP as a sub-process' },
 ]
 
 export const STEP_TYPE_MAP = Object.fromEntries(STEP_TYPES.map(s => [s.value, s]))
@@ -69,6 +70,8 @@ export const DEFAULT_STEP = {
   branchCount: 0,
   // Parallel-specific
   parallelTasks: [],
+  // SubSOP-specific
+  subSopId: null,
 }
 
 export const DEFAULT_TRANSITION = {
@@ -99,6 +102,7 @@ export const STEP_TYPE_COLORS = {
   Automated: { bg: 'bg-cyan-500', light: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-700' },
   Escalation: { bg: 'bg-rose-500', light: 'bg-rose-50', border: 'border-rose-300', text: 'text-rose-700' },
   Handoff: { bg: 'bg-emerald-500', light: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700' },
+  SubSOP: { bg: 'bg-violet-500', light: 'bg-violet-50', border: 'border-violet-300', text: 'text-violet-700' },
 }
 
 // ── Parse SOP JSON into visual state ──
@@ -117,6 +121,7 @@ export function parseSOPToVisual(jsonStr) {
         instructions: step.instructions || '',
         branchCount: step.branchCount || 0,
         parallelTasks: step.parallelTasks || [],
+        subSopId: step.subSopId || null,
       })) : [{ ...DEFAULT_STEP }],
       transitions: Array.isArray(s.transitions) ? s.transitions.map(t => ({
         sourceStepOrder: t.sourceStepOrder ?? 1,
@@ -152,6 +157,7 @@ export function serializeVisualToSOP(vs) {
       instructions: s.instructions || undefined,
       ...(s.stepType === 'Decision' && s.branchCount > 0 ? { branchCount: s.branchCount } : {}),
       ...(s.stepType === 'Parallel' && s.parallelTasks?.length > 0 ? { parallelTasks: s.parallelTasks } : {}),
+      ...(s.stepType === 'SubSOP' && s.subSopId ? { subSopId: s.subSopId } : {}),
     })),
     transitions: vs.transitions,
     ...(vs.outcomes?.length > 0 ? { outcomes: vs.outcomes } : {}),

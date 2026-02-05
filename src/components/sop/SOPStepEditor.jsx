@@ -5,11 +5,13 @@
  * Props:
  *   visualState: { steps, transitions, outcomes, metadata }
  *   onChange: (newVisualState) => void
+ *   availableSOPs: [{ id, name, category, stepCount }] — other SOPs that can be referenced as sub-processes
+ *   onNavigateToSOP: (sopId) => void — optional callback to jump to a referenced sub-SOP
  */
 import { useState } from 'react'
 import {
   Plus, Trash2, ChevronDown, ChevronUp, ArrowRight, Zap,
-  Flag, GripVertical, Clock, User, FileText
+  Flag, GripVertical, Clock, User, FileText, Box, ExternalLink
 } from 'lucide-react'
 import {
   STEP_TYPES, STEP_TYPE_MAP, STEP_TYPE_COLORS, CONDITION_TYPES,
@@ -17,7 +19,7 @@ import {
   autoGenerateTransitions
 } from './sopConstants'
 
-const SOPStepEditor = ({ visualState, onChange }) => {
+const SOPStepEditor = ({ visualState, onChange, availableSOPs = [], onNavigateToSOP }) => {
   const [collapsedSteps, setCollapsedSteps] = useState(new Set())
   const vs = visualState
 
@@ -256,6 +258,47 @@ const SOPStepEditor = ({ visualState, onChange }) => {
                         onChange={e => updateStep(idx, 'branchCount', parseInt(e.target.value) || 2)}
                         className="w-24 px-2 py-1.5 border border-amber-300 rounded text-sm focus:ring-2 focus:ring-amber-500" />
                       <p className="text-xs text-amber-600 mt-1">Define transitions below for each branch path</p>
+                    </div>
+                  )}
+
+                  {/* SubSOP-specific: reference another SOP */}
+                  {step.stepType === 'SubSOP' && (
+                    <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Box className="w-4 h-4 text-violet-600" />
+                        <span className="text-sm font-medium text-violet-800">Sub-Process Reference</span>
+                      </div>
+                      {availableSOPs.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <select value={step.subSopId || ''}
+                            onChange={e => updateStep(idx, 'subSopId', e.target.value || null)}
+                            className="flex-1 px-2 py-1.5 border border-violet-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500">
+                            <option value="">— Select a Sub-SOP —</option>
+                            {availableSOPs.map(sop => (
+                              <option key={sop.id} value={sop.id}>
+                                {sop.name} ({sop.stepCount} steps) — {sop.category}
+                              </option>
+                            ))}
+                          </select>
+                          {step.subSopId && onNavigateToSOP && (
+                            <button type="button" onClick={() => onNavigateToSOP(step.subSopId)}
+                              className="flex items-center gap-1 px-2 py-1.5 text-sm text-violet-600 hover:bg-violet-100 rounded-lg transition-colors"
+                              title="Open this Sub-SOP">
+                              <ExternalLink className="w-3.5 h-3.5" /> Open
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-violet-600">
+                          No other SOPs available to reference. Create more SOPs first, then link them here as sub-processes.
+                        </p>
+                      )}
+                      {step.subSopId && (
+                        <p className="text-xs text-violet-500">
+                          When this step is reached, the referenced SOP workflow will be executed as a sub-process.
+                          The parent workflow resumes once the sub-SOP completes.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
