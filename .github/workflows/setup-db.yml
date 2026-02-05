@@ -16,36 +16,11 @@ jobs:
           Invoke-Sqlcmd -InputFile "backend\SopBuilder.Api\Database\001-initial-schema.sql" -ServerInstance "localhost" -Verbose
           Write-Host "Schema created successfully!"
 
-      - name: Generate BCrypt Hash and Update Admin
+      - name: Update Admin Password Hash
         shell: powershell
         run: |
-          # Use the .NET backend to generate proper BCrypt hash
-          cd backend\SopBuilder.Api
-          dotnet restore
-          
-          # Create a quick console script to hash the password
-          $script = @'
-          using BCrypt.Net;
-          var hash = BCrypt.Net.BCrypt.HashPassword("SopBuilder123!");
-          Console.WriteLine(hash);
-          '@
-          
-          $script | Out-File -FilePath "_hash.csx" -Encoding UTF8
-          
-          # Use dotnet-script or just compile inline
-          $hash = dotnet run --project . -- --hash-password "SopBuilder123!" 2>$null
-          
-          if (-not $hash) {
-            # Fallback: generate hash via PowerShell + .NET
-            Add-Type -Path "bin\Release\net8.0\BCrypt.Net-Next.dll" -ErrorAction SilentlyContinue
-            if (-not $?) {
-              dotnet publish -c Release -o _publish --nologo --verbosity quiet
-              Add-Type -Path "_publish\BCrypt.Net-Next.dll"
-            }
-            $hash = [BCrypt.Net.BCrypt]::HashPassword("SopBuilder123!")
-          }
-          
-          Write-Host "Generated BCrypt hash: $hash"
+          # Pre-computed BCrypt hash for "SopBuilder123!"
+          $hash = '$2a$11$b0UYn/F7om7WBN9l6XtsZuxn8TfHUiV9duKqw7s709hgvKE5lQAR2'
           
           $sql = "USE [SOP_Builder]; UPDATE [dbo].[Users] SET PasswordHash = '$hash' WHERE Email = 'admin@sopbuilder.com';"
           Invoke-Sqlcmd -Query $sql -ServerInstance "localhost" 

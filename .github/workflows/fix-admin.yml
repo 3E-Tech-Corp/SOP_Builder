@@ -9,21 +9,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate BCrypt hash and update admin
+      - name: Update admin password hash
         shell: powershell
         run: |
-          # Create a tiny console app to generate the BCrypt hash
-          $tmpDir = "_hashgen"
-          if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
-          dotnet new console -o $tmpDir --no-restore --force | Out-Null
-          dotnet add $tmpDir package BCrypt.Net-Next | Out-Null
+          # Pre-computed BCrypt hash for "SopBuilder123!"
+          $hash = '$2a$11$b0UYn/F7om7WBN9l6XtsZuxn8TfHUiV9duKqw7s709hgvKE5lQAR2'
           
-          Set-Content "$tmpDir\Program.cs" 'Console.Write(BCrypt.Net.BCrypt.HashPassword("SopBuilder123!"));'
-          $hash = dotnet run --project $tmpDir --no-launch-profile
-          Write-Host "Hash generated: $($hash.Substring(0,20))..."
-          Remove-Item $tmpDir -Recurse -Force
-          
-          # Update in DB
           $sql = "USE [SOP_Builder]; UPDATE [dbo].[Users] SET PasswordHash = '$hash' WHERE Email = 'admin@sopbuilder.com'; SELECT Email, Name, Role FROM Users;"
           $result = Invoke-Sqlcmd -Query $sql -ServerInstance "localhost"
           Write-Host "Admin updated:"

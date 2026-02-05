@@ -175,6 +175,6 @@ GO
 IF NOT EXISTS (SELECT 1 FROM [dbo].[Users] WHERE Email = 'admin@sopbuilder.com')
 BEGIN
     INSERT INTO [dbo].[Users] (Email, PasswordHash, Name, Role)
-    VALUES ('admin@sopbuilder.com', '$2a$11$rKzFGqKJB0DhBZ9lHxJmZeQP5fR7rN3MZtJy0E1GkCx/IqvU6WqDy', 'Admin', 'Admin');
+    VALUES ('admin@sopbuilder.com', '$2a$11$b0UYn/F7om7WBN9l6XtsZuxn8TfHUiV9duKqw7s709hgvKE5lQAR2', 'Admin', 'Admin');
 END
 GO
