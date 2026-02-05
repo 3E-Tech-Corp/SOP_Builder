@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit3, Copy, Trash2, Play, Download, Upload, Workflow, Clock, GitBranch } from 'lucide-react';
+import { Plus, Edit3, Copy, Trash2, Play, Download, Upload, Workflow, Clock, GitBranch, Database } from 'lucide-react';
 import { loadSOPs, saveSOP, deleteSOP, duplicateSOP, exportSOP, importSOP } from '../utils/storage';
 import useSopStore from '../store/sopStore';
 
@@ -21,8 +21,10 @@ export default function SopList() {
       id: crypto.randomUUID(),
       name: newName.trim(),
       description: newDesc.trim(),
+      version: '1.0',
       nodes: [],
       edges: [],
+      objectSchema: { properties: [] },
     };
     saveSOP(sop);
     setNewName('');
@@ -74,31 +76,17 @@ export default function SopList() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-white">My SOPs</h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Design, test, and manage your Standard Operating Procedures
-            </p>
+            <p className="text-sm text-slate-400 mt-1">Design, test, and manage your Standard Operating Procedures</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              Import
+            <button onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">
+              <Upload className="w-4 h-4" /> Import
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleImport}
-              className="hidden"
-            />
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors shadow-lg shadow-synthia-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              New SOP
+            <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors shadow-lg shadow-synthia-500/20">
+              <Plus className="w-4 h-4" /> New SOP
             </button>
           </div>
         </div>
@@ -111,39 +99,22 @@ export default function SopList() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm text-slate-300 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="e.g., Employee Onboarding"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-synthia-500 focus:border-transparent"
-                    autoFocus
-                    onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                  />
+                  <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                    placeholder="e.g., Employee Onboarding" autoFocus onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-synthia-500 focus:border-transparent" />
                 </div>
                 <div>
                   <label className="block text-sm text-slate-300 mb-1">Description</label>
-                  <textarea
-                    value={newDesc}
-                    onChange={e => setNewDesc(e.target.value)}
-                    placeholder="Brief description of this SOP..."
-                    rows={3}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-synthia-500 focus:border-transparent resize-none"
-                  />
+                  <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)}
+                    placeholder="Brief description of this SOP..." rows={3}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-synthia-500 focus:border-transparent resize-none" />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-5">
-                <button
-                  onClick={() => { setShowCreate(false); setNewName(''); setNewDesc(''); }}
-                  className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={!newName.trim()}
-                  className="px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button onClick={() => { setShowCreate(false); setNewName(''); setNewDesc(''); }}
+                  className="px-4 py-2 text-sm text-slate-300 hover:text-white transition-colors">Cancel</button>
+                <button onClick={handleCreate} disabled={!newName.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   Create & Design
                 </button>
               </div>
@@ -151,32 +122,26 @@ export default function SopList() {
           </div>
         )}
 
-        {/* SOP Grid */}
+        {/* Grid */}
         {sops.length === 0 ? (
           <div className="text-center py-20">
             <Workflow className="w-16 h-16 text-slate-600 mx-auto mb-4" />
             <h2 className="text-lg font-medium text-slate-400 mb-2">No SOPs yet</h2>
             <p className="text-sm text-slate-500 mb-6">Create your first Standard Operating Procedure to get started.</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Create SOP
+            <button onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded-lg transition-colors">
+              <Plus className="w-4 h-4" /> Create SOP
             </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sops.map(sop => (
-              <SopCard
-                key={sop.id}
-                sop={sop}
+              <SopCard key={sop.id} sop={sop}
                 onEdit={() => navigate(`/designer/${sop.id}`)}
                 onTest={() => navigate(`/tester/${sop.id}`)}
                 onDuplicate={() => handleDuplicate(sop.id)}
                 onDelete={() => handleDelete(sop.id, sop.name)}
-                onExport={() => handleExport(sop)}
-              />
+                onExport={() => handleExport(sop)} />
             ))}
           </div>
         )}
@@ -188,6 +153,7 @@ export default function SopList() {
 function SopCard({ sop, onEdit, onTest, onDuplicate, onDelete, onExport }) {
   const nodeCount = sop.nodes?.length || 0;
   const edgeCount = sop.edges?.length || 0;
+  const propCount = sop.objectSchema?.properties?.length || 0;
   const updatedAt = sop.updatedAt ? new Date(sop.updatedAt).toLocaleDateString() : 'N/A';
 
   return (
@@ -199,11 +165,17 @@ function SopCard({ sop, onEdit, onTest, onDuplicate, onDelete, onExport }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
+      <div className="flex items-center gap-3 text-xs text-slate-500 mb-4 flex-wrap">
         <span className="flex items-center gap-1">
           <GitBranch className="w-3.5 h-3.5" />
           {nodeCount} nodes, {edgeCount} edges
         </span>
+        {propCount > 0 && (
+          <span className="flex items-center gap-1">
+            <Database className="w-3.5 h-3.5" />
+            {propCount} props
+          </span>
+        )}
         <span className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5" />
           {updatedAt}
@@ -211,39 +183,24 @@ function SopCard({ sop, onEdit, onTest, onDuplicate, onDelete, onExport }) {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-synthia-400 bg-synthia-500/10 hover:bg-synthia-500/20 rounded-md transition-colors"
-        >
-          <Edit3 className="w-3 h-3" />
-          Design
+        <button onClick={onEdit}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-synthia-400 bg-synthia-500/10 hover:bg-synthia-500/20 rounded-md transition-colors">
+          <Edit3 className="w-3 h-3" /> Design
         </button>
-        <button
-          onClick={onTest}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-md transition-colors"
-        >
-          <Play className="w-3 h-3" />
-          Test
+        <button onClick={onTest}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-md transition-colors">
+          <Play className="w-3 h-3" /> Test
         </button>
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-md transition-colors"
-          title="Export JSON"
-        >
+        <button onClick={onExport} title="Export JSON"
+          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-md transition-colors">
           <Download className="w-3 h-3" />
         </button>
-        <button
-          onClick={onDuplicate}
-          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-md transition-colors"
-          title="Duplicate"
-        >
+        <button onClick={onDuplicate} title="Duplicate"
+          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-md transition-colors">
           <Copy className="w-3 h-3" />
         </button>
-        <button
-          onClick={onDelete}
-          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors ml-auto"
-          title="Delete"
-        >
+        <button onClick={onDelete} title="Delete"
+          className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors ml-auto">
           <Trash2 className="w-3 h-3" />
         </button>
       </div>
