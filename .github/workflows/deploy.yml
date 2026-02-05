@@ -32,3 +32,23 @@ jobs:
             -SiteName "${{ env.SITE_NAME }}" `
             -BackendSource "publish-backend" `
             -FrontendSource "dist"
+
+      - name: Verify IIS Configuration
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          $site = "${{ env.SITE_NAME }}"
+          Write-Host "=== IIS Site ==="
+          Get-Website -Name $site | Format-List
+          Write-Host "=== Virtual Applications ==="
+          Get-WebApplication -Site $site | Format-List
+          Write-Host "=== App Pool State ==="
+          Get-WebAppPoolState -Name $site
+          Write-Host "=== API Directory Contents ==="
+          Get-ChildItem "F:\New_WWW\$site\API" -Filter "*.dll" | Select-Object Name | Format-Table
+          Write-Host "=== web.config in API ==="
+          if (Test-Path "F:\New_WWW\$site\API\web.config") {
+            Get-Content "F:\New_WWW\$site\API\web.config"
+          } else {
+            Write-Host "NO web.config found in API directory!"
+          }
