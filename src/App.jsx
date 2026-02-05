@@ -7,18 +7,15 @@ import SOPWorkflowEditor from './components/sop/SOPWorkflowEditor'
 import { SOP_CATEGORIES } from './components/sop/sopConstants'
 
 const DEFAULT_SOP_STRUCTURE = JSON.stringify({
-  steps: [{
-    name: 'Initial Step',
-    stepType: 'Action',
-    sortOrder: 1,
-    description: '',
-    assignee: '',
-    estimatedMinutes: 30,
-    required: true,
-    instructions: ''
-  }],
-  transitions: [],
-  outcomes: []
+  statuses: [
+    { name: 'New', nodeType: 'Start', description: 'Initial status', sortOrder: 1 },
+    { name: 'In Progress', nodeType: 'Normal', description: '', sortOrder: 2 },
+    { name: 'Completed', nodeType: 'Terminal', description: 'Workflow complete', sortOrder: 3 },
+  ],
+  connectors: [
+    { name: 'Start Work', fromStatus: 'New', toStatus: 'In Progress', connectorType: 'Manual' },
+    { name: 'Complete', fromStatus: 'In Progress', toStatus: 'Completed', connectorType: 'Manual' },
+  ],
 }, null, 2)
 
 const EMPTY_SOP = {
@@ -145,10 +142,17 @@ function App() {
     return matchSearch && matchCategory
   })
 
-  const getStepCount = (sop) => {
+  const getStatusCount = (sop) => {
     try {
       const parsed = JSON.parse(sop.structureJson)
-      return parsed.steps?.length || 0
+      return parsed.statuses?.length || 0
+    } catch { return 0 }
+  }
+
+  const getConnectorCount = (sop) => {
+    try {
+      const parsed = JSON.parse(sop.structureJson)
+      return parsed.connectors?.length || 0
     } catch { return 0 }
   }
 
@@ -175,7 +179,8 @@ function App() {
       id: s.id,
       name: s.name,
       category: getCategoryInfo(s.category).label,
-      stepCount: getStepCount(s),
+      statusCount: getStatusCount(s),
+      connectorCount: getConnectorCount(s),
     }))
 
   // Navigate to a sub-SOP for editing
@@ -411,7 +416,7 @@ function App() {
                 )}
 
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-4 flex-wrap">
-                  <span>{getStepCount(sop)} steps</span>
+                  <span>{getStatusCount(sop)} statuses · {getConnectorCount(sop)} actions</span>
                   {getObjectType(sop) && (
                     <span className="inline-flex items-center gap-1 text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
                       <Database className="w-3 h-3" /> {getObjectType(sop)} ({getPropertyCount(sop)} fields)
@@ -422,7 +427,7 @@ function App() {
                   {sops.some(other => {
                     try {
                       const parsed = JSON.parse(other.structureJson)
-                      return parsed.steps?.some(s => String(s.subSopId) === String(sop.id))
+                      return parsed.connectors?.some(c => String(c.subSopId) === String(sop.id))
                     } catch { return false }
                   }) && (
                     <span className="inline-flex items-center gap-1 text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">

@@ -134,6 +134,140 @@ export const DEFAULT_OUTCOME = {
   description: '',
 }
 
+// ══════════════════════════════════════════
+// State Machine Model — Statuses + Connectors (Actions)
+// ══════════════════════════════════════════
+
+// Status node types (visual differentiation)
+export const STATUS_NODE_TYPES = [
+  { value: 'Start', label: 'Start', color: 'green', description: 'Entry point — object begins here' },
+  { value: 'Normal', label: 'Normal', color: 'blue', description: 'Standard workflow status' },
+  { value: 'Decision', label: 'Decision', color: 'amber', description: 'Status where a decision/review happens' },
+  { value: 'Waiting', label: 'Waiting', color: 'gray', description: 'Object is waiting for external input' },
+  { value: 'Terminal', label: 'Terminal', color: 'purple', description: 'Final status — workflow ends here' },
+  { value: 'Error', label: 'Error', color: 'red', description: 'Error or exception status' },
+]
+
+export const STATUS_NODE_COLORS = {
+  Start: { bg: 'bg-green-500', light: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', ring: 'ring-green-500' },
+  Normal: { bg: 'bg-blue-500', light: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', ring: 'ring-blue-500' },
+  Decision: { bg: 'bg-amber-500', light: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', ring: 'ring-amber-500' },
+  Waiting: { bg: 'bg-gray-500', light: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-700', ring: 'ring-gray-500' },
+  Terminal: { bg: 'bg-purple-500', light: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-700', ring: 'ring-purple-500' },
+  Error: { bg: 'bg-red-500', light: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', ring: 'ring-red-500' },
+}
+
+// Connector (action) types
+export const CONNECTOR_TYPES = [
+  { value: 'Manual', label: 'Manual Action', description: 'Performed by a person' },
+  { value: 'Approval', label: 'Approval', description: 'Requires sign-off' },
+  { value: 'Automated', label: 'Automated', description: 'System-triggered' },
+  { value: 'Conditional', label: 'Conditional', description: 'Based on a condition/rule' },
+  { value: 'Timer', label: 'Timer / Scheduled', description: 'Triggers after a time period' },
+  { value: 'SubSOP', label: 'Sub-SOP', description: 'Executes a nested SOP workflow' },
+]
+
+export const DEFAULT_STATUS = {
+  name: 'New Status',
+  nodeType: 'Normal',
+  description: '',
+  sortOrder: 1,
+}
+
+export const DEFAULT_CONNECTOR = {
+  name: '',
+  fromStatus: '',   // status name
+  toStatus: '',     // status name
+  connectorType: 'Manual',
+  assignee: '',
+  description: '',
+  instructions: '',
+  condition: '',
+  estimatedMinutes: 0,
+  requiredFields: [],   // property keys that must be filled to perform this action
+  subSopId: null,
+}
+
+// Parse state-machine model from JSON
+export function parseStateMachineToVisual(jsonStr) {
+  try {
+    const s = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr
+    return {
+      statuses: Array.isArray(s.statuses) ? s.statuses.map((st, i) => ({
+        name: st.name || `Status ${i + 1}`,
+        nodeType: st.nodeType || 'Normal',
+        description: st.description || '',
+        sortOrder: st.sortOrder || i + 1,
+      })) : [
+        { name: 'New', nodeType: 'Start', description: 'Initial status', sortOrder: 1 },
+        { name: 'Completed', nodeType: 'Terminal', description: 'Workflow complete', sortOrder: 2 },
+      ],
+      connectors: Array.isArray(s.connectors) ? s.connectors.map(c => ({
+        name: c.name || '',
+        fromStatus: c.fromStatus || '',
+        toStatus: c.toStatus || '',
+        connectorType: c.connectorType || 'Manual',
+        assignee: c.assignee || '',
+        description: c.description || '',
+        instructions: c.instructions || '',
+        condition: c.condition || '',
+        estimatedMinutes: c.estimatedMinutes || 0,
+        requiredFields: c.requiredFields || [],
+        subSopId: c.subSopId || null,
+      })) : [],
+      objectSchema: s.objectSchema ? {
+        typeName: s.objectSchema.typeName || '',
+        typeDescription: s.objectSchema.typeDescription || '',
+        properties: Array.isArray(s.objectSchema.properties) ? s.objectSchema.properties.map(p => ({
+          key: p.key || '', label: p.label || '', type: p.type || 'Text',
+          required: p.required || false, description: p.description || '',
+          defaultValue: p.defaultValue || '', options: p.options || [], builtIn: false,
+        })) : [],
+      } : { ...DEFAULT_OBJECT_SCHEMA },
+      metadata: s.metadata || {},
+    }
+  } catch {
+    return {
+      statuses: [
+        { name: 'New', nodeType: 'Start', description: 'Initial status', sortOrder: 1 },
+        { name: 'Completed', nodeType: 'Terminal', description: 'Workflow complete', sortOrder: 2 },
+      ],
+      connectors: [],
+      objectSchema: { ...DEFAULT_OBJECT_SCHEMA },
+      metadata: {},
+    }
+  }
+}
+
+// Serialize state-machine visual state to JSON
+export function serializeStateMachineToJson(vs) {
+  const obj = {
+    statuses: vs.statuses.map((s, i) => ({
+      name: s.name,
+      nodeType: s.nodeType,
+      description: s.description || undefined,
+      sortOrder: i + 1,
+    })),
+    connectors: vs.connectors.map(c => ({
+      name: c.name,
+      fromStatus: c.fromStatus,
+      toStatus: c.toStatus,
+      connectorType: c.connectorType,
+      assignee: c.assignee || undefined,
+      description: c.description || undefined,
+      instructions: c.instructions || undefined,
+      condition: c.condition || undefined,
+      estimatedMinutes: c.estimatedMinutes || undefined,
+      ...(c.requiredFields?.length > 0 ? { requiredFields: c.requiredFields } : {}),
+      ...(c.connectorType === 'SubSOP' && c.subSopId ? { subSopId: c.subSopId } : {}),
+    })),
+    ...(vs.objectSchema && (vs.objectSchema.typeName || vs.objectSchema.properties?.length > 0)
+      ? { objectSchema: vs.objectSchema } : {}),
+    ...(vs.metadata && Object.keys(vs.metadata).length > 0 ? { metadata: vs.metadata } : {}),
+  }
+  return JSON.stringify(obj, null, 2)
+}
+
 // ── Step type colors for UI ──
 export const STEP_TYPE_COLORS = {
   Action: { bg: 'bg-blue-500', light: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700' },

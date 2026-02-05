@@ -1,6 +1,6 @@
 /**
- * SOPWorkflowEditor — Complete SOP workflow editor with metadata + step editor + JSON toggle.
- * This is the main reusable component — drop it into any app.
+ * SOPWorkflowEditor — Complete SOP workflow editor using the state machine model.
+ * Statuses = nodes, Connectors = actions (edges) that move objects between statuses.
  *
  * Props:
  *   value: string (JSON) — the SOP workflow JSON to edit
@@ -12,13 +12,15 @@
  *   onNavigateToSOP: (sopId) => void — callback to navigate to a sub-SOP
  */
 import { useState, useCallback, useEffect } from 'react'
-import { Settings, Code, Database, ListOrdered } from 'lucide-react'
-import SOPStepEditor from './SOPStepEditor'
+import { Settings, Code, Database, GitBranch } from 'lucide-react'
+import StatusConnectorEditor from './StatusConnectorEditor'
 import ObjectSchemaEditor from './ObjectSchemaEditor'
-import { parseSOPToVisual, serializeVisualToSOP, DEFAULT_OBJECT_SCHEMA } from './sopConstants'
+import {
+  parseStateMachineToVisual, serializeStateMachineToJson, DEFAULT_OBJECT_SCHEMA
+} from './sopConstants'
 
 export default function SOPWorkflowEditor({
-  value = '{"steps":[],"transitions":[]}',
+  value = '{"statuses":[],"connectors":[]}',
   onChange,
   mode = 'both',
   className = '',
@@ -27,21 +29,21 @@ export default function SOPWorkflowEditor({
   onNavigateToSOP
 }) {
   const [editorMode, setEditorMode] = useState(mode === 'json' ? 'json' : 'visual')
-  const [visualTab, setVisualTab] = useState('steps') // 'schema' | 'steps'
-  const [visualState, setVisualState] = useState(() => parseSOPToVisual(value))
+  const [visualTab, setVisualTab] = useState('workflow') // 'schema' | 'workflow'
+  const [visualState, setVisualState] = useState(() => parseStateMachineToVisual(value))
   const [jsonText, setJsonText] = useState(value)
   const [jsonError, setJsonError] = useState(null)
 
   useEffect(() => {
     if (value !== jsonText) {
       setJsonText(value)
-      setVisualState(parseSOPToVisual(value))
+      setVisualState(parseStateMachineToVisual(value))
     }
   }, [value])
 
   const handleVisualChange = useCallback((newState) => {
     setVisualState(newState)
-    const json = serializeVisualToSOP(newState)
+    const json = serializeStateMachineToJson(newState)
     setJsonText(json)
     onChange?.(json)
   }, [onChange])
@@ -59,12 +61,12 @@ export default function SOPWorkflowEditor({
 
   const handleToggleMode = useCallback(() => {
     if (editorMode === 'visual') {
-      const json = serializeVisualToSOP(visualState)
+      const json = serializeStateMachineToJson(visualState)
       setJsonText(json)
       setEditorMode('json')
     } else {
       try {
-        const parsed = parseSOPToVisual(jsonText)
+        const parsed = parseStateMachineToVisual(jsonText)
         setVisualState(parsed)
         setJsonError(null)
       } catch { /* keep current */ }
@@ -109,13 +111,13 @@ export default function SOPWorkflowEditor({
             }`}>
             <Database className="w-3.5 h-3.5" /> Object Schema
           </button>
-          <button type="button" onClick={() => setVisualTab('steps')}
+          <button type="button" onClick={() => setVisualTab('workflow')}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              visualTab === 'steps'
+              visualTab === 'workflow'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            <ListOrdered className="w-3.5 h-3.5" /> Workflow Steps
+            <GitBranch className="w-3.5 h-3.5" /> Workflow
           </button>
         </div>
       )}
@@ -130,7 +132,7 @@ export default function SOPWorkflowEditor({
                   onChange={(newSchema) => handleVisualChange({ ...visualState, objectSchema: newSchema })}
                 />
               ) : (
-                <SOPStepEditor
+                <StatusConnectorEditor
                   visualState={visualState}
                   onChange={handleVisualChange}
                   availableSOPs={availableSOPs}
@@ -151,7 +153,7 @@ export default function SOPWorkflowEditor({
                 value={jsonText}
                 onChange={e => handleJsonChange(e.target.value)}
                 className="w-full h-96 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder='{"steps": [...], "transitions": [...]}'
+                placeholder='{"statuses": [...], "connectors": [...]}'
               />
             </div>
           </div>
