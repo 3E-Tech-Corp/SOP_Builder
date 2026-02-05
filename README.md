@@ -1,54 +1,44 @@
 # SOP Builder
 
-Visual editor for creating and managing Standard Operating Procedures (SOPs).
+Visual Standard Operating Procedure designer and tester. Design SOPs as workflow graphs, then push objects through to test transitions, audit trails, and notification flows.
+
+**Live:** [sop.synthia.bot](https://sop.synthia.bot)
 
 ## Features
 
-- **Visual Step Editor** — Add, reorder, and configure workflow steps with 12 step types:
-  - Action, Review, Approval, Decision, Notification, Parallel, Wait/Timer, Compliance Check, Data Input, Automated, Escalation, Handoff
-- **Transition Rules** — Define how steps connect with conditions (Always, Approved, Rejected, Custom, Timeout, Error)
-- **Auto-generate Transitions** — One-click linear flow generation with smart decision branching
-- **Outcomes** — Define possible end states (Completed, Approved, Rejected, Escalated, etc.)
-- **JSON Editor** — Toggle between visual and raw JSON editing modes
-- **Import/Export** — Save and load SOPs as JSON files
-- **SOP Metadata** — Name, description, category, version, owner, department, tags, dates
+- **Visual SOP Designer** — Drag-and-drop workflow editor with Start, Status, Decision, and End nodes
+- **Node & Edge Configuration** — SLA timeouts, notification settings (email/SMS), required fields per action
+- **SOP Tester** — Push test objects through workflows, track position with animated highlighting
+- **Multi-Object Tracking** — Run multiple objects simultaneously with color-coded paths
+- **Audit Trail** — Full transition log with filtering and CSV export
+- **Notification Preview** — Simulated notification toasts showing what would be sent
+- **Import/Export** — Share SOPs as JSON files
+- **Sample SOP** — Pre-loaded "Purchase Order Approval" workflow
 
-## Architecture
+## Tech Stack
 
-The editor is built as reusable components that can be dropped into any React app:
+- React 18 + Vite
+- Tailwind CSS (dark theme)
+- @xyflow/react (React Flow v12) for visual editor
+- zustand for state management
+- dagre for auto-layout
+- lucide-react for icons
+- localStorage for persistence (v1 — no backend)
 
-```
-src/components/sop/
-├── sopConstants.js         # Constants, defaults, parse/serialize helpers
-├── SOPStepEditor.jsx       # List-based step/transition/outcome editor
-└── SOPWorkflowEditor.jsx   # Wrapper with visual/JSON toggle
-```
-
-### Standalone Usage
-
-```jsx
-import SOPWorkflowEditor from './components/sop/SOPWorkflowEditor'
-
-<SOPWorkflowEditor
-  value={jsonString}
-  onChange={setJsonString}
-  mode="both"  // 'visual' | 'json' | 'both'
-/>
-```
-
-## Getting Started
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Tech Stack
+## Build & Deploy
 
-- React + Vite
-- Tailwind CSS v4
-- Lucide React icons
+```bash
+npm run build
+# Copy dist/ to web server
+```
 
-## Origin
+## License
 
-The visual editing pattern was adapted from the tournament phase editor in [pickleball.community](https://pickleball.community). The same concept of phases → steps, advancement rules → transitions, exit positions → outcomes maps naturally from tournament formats to business workflows.
+MIT — 3E Tech Corp
