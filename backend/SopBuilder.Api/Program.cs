@@ -56,6 +56,7 @@ builder.Services.AddControllers();
 var app = builder.Build();
 
 // ── Middleware pipeline ──
+app.UseDeveloperExceptionPage();
 app.UseCors();
 
 app.UseAuthentication();
