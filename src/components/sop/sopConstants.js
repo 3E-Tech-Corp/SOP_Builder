@@ -174,12 +174,17 @@ export const DEFAULT_STATUS = {
   sortOrder: 1,
 }
 
+export const DEFAULT_ROLE = {
+  name: '',
+  description: '',
+}
+
 export const DEFAULT_CONNECTOR = {
   name: '',
   fromStatus: '',   // status name
   toStatus: '',     // status name
   connectorType: 'Manual',
-  assignee: '',
+  allowedRoles: [],   // role names that can perform this action (empty = anyone)
   description: '',
   instructions: '',
   condition: '',
@@ -193,6 +198,10 @@ export function parseStateMachineToVisual(jsonStr) {
   try {
     const s = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr
     return {
+      roles: Array.isArray(s.roles) ? s.roles.map(r => ({
+        name: r.name || '',
+        description: r.description || '',
+      })) : [],
       statuses: Array.isArray(s.statuses) ? s.statuses.map((st, i) => ({
         name: st.name || `Status ${i + 1}`,
         nodeType: st.nodeType || 'Normal',
@@ -207,7 +216,7 @@ export function parseStateMachineToVisual(jsonStr) {
         fromStatus: c.fromStatus || '',
         toStatus: c.toStatus || '',
         connectorType: c.connectorType || 'Manual',
-        assignee: c.assignee || '',
+        allowedRoles: c.allowedRoles || [],
         description: c.description || '',
         instructions: c.instructions || '',
         condition: c.condition || '',
@@ -228,6 +237,7 @@ export function parseStateMachineToVisual(jsonStr) {
     }
   } catch {
     return {
+      roles: [],
       statuses: [
         { name: 'New', nodeType: 'Start', description: 'Initial status', sortOrder: 1 },
         { name: 'Completed', nodeType: 'Terminal', description: 'Workflow complete', sortOrder: 2 },
@@ -242,6 +252,10 @@ export function parseStateMachineToVisual(jsonStr) {
 // Serialize state-machine visual state to JSON
 export function serializeStateMachineToJson(vs) {
   const obj = {
+    ...(vs.roles?.length > 0 ? { roles: vs.roles.map(r => ({
+      name: r.name,
+      description: r.description || undefined,
+    })) } : {}),
     statuses: vs.statuses.map((s, i) => ({
       name: s.name,
       nodeType: s.nodeType,
@@ -253,7 +267,7 @@ export function serializeStateMachineToJson(vs) {
       fromStatus: c.fromStatus,
       toStatus: c.toStatus,
       connectorType: c.connectorType,
-      assignee: c.assignee || undefined,
+      ...(c.allowedRoles?.length > 0 ? { allowedRoles: c.allowedRoles } : {}),
       description: c.description || undefined,
       instructions: c.instructions || undefined,
       condition: c.condition || undefined,
