@@ -31,7 +31,8 @@ if (-not $siteExists) {
     }
 
     # Create App Pool
-    $poolExists = Get-WebAppPoolState -Name $SiteName -ErrorAction SilentlyContinue
+    $poolExists = $false
+    try { $poolExists = (Get-WebAppPoolState -Name $SiteName -ErrorAction Stop) -ne $null } catch {}
     if (-not $poolExists) {
         New-WebAppPool -Name $SiteName
         Set-ItemProperty "IIS:\AppPools\$SiteName" -Name managedRuntimeVersion -Value ""
