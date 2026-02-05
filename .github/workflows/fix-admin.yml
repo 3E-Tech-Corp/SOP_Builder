@@ -12,15 +12,16 @@ jobs:
       - name: Generate BCrypt hash and update admin
         shell: powershell
         run: |
-          # Build the backend to get BCrypt DLL
-          cd backend\SopBuilder.Api
-          dotnet publish -c Release -o _publish --nologo -v quiet
+          # Create a tiny console app to generate the BCrypt hash
+          $tmpDir = "_hashgen"
+          if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
+          dotnet new console -o $tmpDir --no-restore --force | Out-Null
+          dotnet add $tmpDir package BCrypt.Net-Next | Out-Null
           
-          # Load BCrypt and generate hash
-          $dllPath = Get-ChildItem -Path "_publish" -Filter "BCrypt.Net-Next.dll" -Recurse | Select-Object -First 1
-          Add-Type -Path $dllPath.FullName
-          $hash = [BCrypt.Net.BCrypt]::HashPassword("SopBuilder123!")
+          Set-Content "$tmpDir\Program.cs" 'Console.Write(BCrypt.Net.BCrypt.HashPassword("SopBuilder123!"));'
+          $hash = dotnet run --project $tmpDir --no-launch-profile
           Write-Host "Hash generated: $($hash.Substring(0,20))..."
+          Remove-Item $tmpDir -Recurse -Force
           
           # Update in DB
           $sql = "USE [SOP_Builder]; UPDATE [dbo].[Users] SET PasswordHash = '$hash' WHERE Email = 'admin@sopbuilder.com'; SELECT Email, Name, Role FROM Users;"
