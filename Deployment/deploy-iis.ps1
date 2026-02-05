@@ -141,13 +141,14 @@ Get-ChildItem -Path $frontendPath -Recurse | Remove-Item -Recurse -Force -ErrorA
 Copy-Item -Path "$FrontendSource\*" -Destination $frontendPath -Recurse -Force
 Write-Host "   Frontend deployed" -ForegroundColor Green
 
-# Deploy Backend (preserve appsettings.Production.json)
+# Deploy Backend (preserve appsettings.Production.json and uploads/)
 Write-Host "`n>> Deploying Backend" -ForegroundColor Yellow
 if (!(Test-Path $backendPath)) {
     New-Item -ItemType Directory -Path $backendPath -Force | Out-Null
 }
 
 $preserveFiles = @("appsettings.Production.json")
+$preserveDirs = @("uploads")
 $tempDir = Join-Path $env:TEMP "deploy-preserve-$(Get-Random)"
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
@@ -159,6 +160,15 @@ foreach ($file in $preserveFiles) {
     }
 }
 
+foreach ($dir in $preserveDirs) {
+    $src = Join-Path $backendPath $dir
+    if (Test-Path $src) {
+        $dst = Join-Path $tempDir $dir
+        Copy-Item $src $dst -Recurse -Force
+        Write-Host "   Preserved: $dir/ directory" -ForegroundColor Gray
+    }
+}
+
 Copy-Item -Path "$BackendSource\*" -Destination $backendPath -Recurse -Force
 
 foreach ($file in $preserveFiles) {
@@ -166,6 +176,15 @@ foreach ($file in $preserveFiles) {
     if (Test-Path $src) {
         Copy-Item $src (Join-Path $backendPath $file) -Force
         Write-Host "   Restored: $file" -ForegroundColor Gray
+    }
+}
+
+foreach ($dir in $preserveDirs) {
+    $src = Join-Path $tempDir $dir
+    if (Test-Path $src) {
+        $dst = Join-Path $backendPath $dir
+        Copy-Item $src $dst -Recurse -Force
+        Write-Host "   Restored: $dir/ directory" -ForegroundColor Gray
     }
 }
 

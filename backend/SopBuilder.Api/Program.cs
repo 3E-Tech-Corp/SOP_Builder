@@ -13,6 +13,10 @@ builder.Services.AddSingleton<AuditService>();
 builder.Services.AddSingleton<ObjectService>();
 builder.Services.AddSingleton<NotificationService>();
 
+// Asset Management (scoped — per-request lifetime)
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IAssetService, AssetService>();
+
 // ── Auth ──
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

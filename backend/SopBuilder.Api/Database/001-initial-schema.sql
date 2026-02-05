@@ -94,18 +94,43 @@ END
 GO
 
 -- ============================================
--- Documents attached during actions
+-- Assets (funtime-shared Asset Management Pattern)
+-- Canonical URL: GET /asset/{id}
+-- Files stored as: {basePath}/{siteKey}/{YYYY-MM}/{assetId}.{ext}
+-- ============================================
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Assets]') AND type = 'U')
+BEGIN
+    CREATE TABLE [dbo].[Assets] (
+        Id              INT IDENTITY(1,1) PRIMARY KEY,
+        AssetType       NVARCHAR(20)   NOT NULL DEFAULT 'document',
+        FileName        NVARCHAR(255)  NOT NULL,
+        ContentType     NVARCHAR(100)  NOT NULL,
+        FileSize        BIGINT         NOT NULL DEFAULT 0,
+        StorageUrl      NVARCHAR(1000) NOT NULL DEFAULT '',
+        ExternalUrl     NVARCHAR(2000) NULL,
+        ThumbnailUrl    NVARCHAR(1000) NULL,
+        StorageType     NVARCHAR(20)   NOT NULL DEFAULT 'local',
+        Category        NVARCHAR(50)   NULL,
+        SiteKey         NVARCHAR(50)   NULL DEFAULT 'sop-builder',
+        UploadedBy      INT            NULL REFERENCES [dbo].[Users](Id),
+        IsPublic        BIT            NOT NULL DEFAULT 1,
+        CreatedAt       DATETIME2      NOT NULL DEFAULT GETUTCDATE()
+    );
+END
+GO
+
+-- ============================================
+-- Documents attached to objects during actions
+-- Links to Assets table (not raw file paths)
 -- ============================================
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ObjectDocuments]') AND type = 'U')
 BEGIN
     CREATE TABLE [dbo].[ObjectDocuments] (
         Id INT IDENTITY(1,1) PRIMARY KEY,
         ObjectId INT NOT NULL REFERENCES [dbo].[SopObjects](Id),
+        AssetId INT NOT NULL REFERENCES [dbo].[Assets](Id),
         ActionEdgeId NVARCHAR(100) NULL,
-        FileName NVARCHAR(255) NOT NULL,
-        FileType NVARCHAR(100) NULL,
-        FilePath NVARCHAR(500) NULL,
-        FileSize BIGINT NULL,
+        DocumentType NVARCHAR(100) NULL,
         UploadedBy INT NULL REFERENCES [dbo].[Users](Id),
         UploadedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );

@@ -120,8 +120,14 @@ public class ObjectService
 
         if (obj == null) return null;
 
-        var docs = await db.QueryAsync<ObjectDocument>(
-            "SELECT * FROM ObjectDocuments WHERE ObjectId = @ObjectId ORDER BY UploadedAt",
+        // Join ObjectDocuments with Assets to get file metadata
+        var docs = await db.QueryAsync<ObjectDocumentWithAsset>(
+            @"SELECT od.Id, od.AssetId, od.ActionEdgeId, od.DocumentType, od.UploadedAt,
+                     a.FileName, a.ContentType, a.FileSize
+              FROM ObjectDocuments od
+              INNER JOIN Assets a ON od.AssetId = a.Id
+              WHERE od.ObjectId = @ObjectId
+              ORDER BY od.UploadedAt",
             new { ObjectId = id });
 
         return new ObjectDetailDto
@@ -140,9 +146,12 @@ public class ObjectService
             Documents = docs.Select(d => new ObjectDocumentDto
             {
                 Id = d.Id,
+                AssetId = d.AssetId,
                 ActionEdgeId = d.ActionEdgeId,
+                DocumentType = d.DocumentType,
+                AssetUrl = $"/asset/{d.AssetId}",
                 FileName = d.FileName,
-                FileType = d.FileType,
+                ContentType = d.ContentType,
                 FileSize = d.FileSize,
                 UploadedAt = d.UploadedAt,
             }).ToList(),
@@ -188,7 +197,7 @@ public class ObjectService
         var actionLabel = GetEdgeLabel(edge.Value);
         var isEndNode = GetNodeType(toNode.Value) == "end";
 
-        // Validate role (if required)
+        // Validate role, fields, and documents
         var edgeData = GetEdgeData(edge.Value);
         ValidateAction(edgeData, request, auth);
 
@@ -223,25 +232,24 @@ public class ObjectService
                 IsComplete = isEndNode,
             });
 
-        // Save documents
-        var docIds = new List<int>();
+        // Link documents (assets already uploaded via /asset/upload)
+        var docAssetIds = new List<int>();
         if (request.Documents != null)
         {
             foreach (var doc in request.Documents)
             {
-                var docId = await db.QuerySingleAsync<int>(
-                    @"INSERT INTO ObjectDocuments (ObjectId, ActionEdgeId, FileName, FileType, UploadedBy)
-                      VALUES (@ObjectId, @ActionEdgeId, @FileName, @FileType, @UploadedBy);
-                      SELECT SCOPE_IDENTITY();",
+                await db.ExecuteAsync(
+                    @"INSERT INTO ObjectDocuments (ObjectId, AssetId, ActionEdgeId, DocumentType, UploadedBy)
+                      VALUES (@ObjectId, @AssetId, @ActionEdgeId, @DocumentType, @UploadedBy)",
                     new
                     {
                         ObjectId = objectId,
+                        doc.AssetId,
                         ActionEdgeId = edgeId,
-                        FileName = doc.FileName ?? doc.Name,
-                        FileType = doc.Type,
+                        DocumentType = doc.Name,
                         UploadedBy = auth.IsApiKey ? (int?)null : auth.UserId,
                     });
-                docIds.Add(docId);
+                docAssetIds.Add(doc.AssetId);
             }
         }
 
@@ -263,7 +271,7 @@ public class ObjectService
             ActorApiKeyId = auth.ApiKeyId,
             ActorRole = request.ActorRole ?? auth.Role,
             PropertiesSnapshot = propertiesJson,
-            DocumentsAttached = docIds.Count > 0 ? JsonSerializer.Serialize(docIds) : null,
+            DocumentsAttached = docAssetIds.Count > 0 ? JsonSerializer.Serialize(docAssetIds) : null,
             NotificationsSent = notifications.Count > 0 ? JsonSerializer.Serialize(notifications, JsonOpts) : null,
             Notes = request.Notes,
         });
@@ -279,6 +287,19 @@ public class ObjectService
     }
 
     // ── Private helpers ──
+
+    /// <summary>Dapper projection for the ObjectDocuments + Assets join</summary>
+    private class ObjectDocumentWithAsset
+    {
+        public int Id { get; set; }
+        public int AssetId { get; set; }
+        public string? ActionEdgeId { get; set; }
+        public string? DocumentType { get; set; }
+        public DateTime UploadedAt { get; set; }
+        public string FileName { get; set; } = "";
+        public string ContentType { get; set; } = "";
+        public long FileSize { get; set; }
+    }
 
     private static JsonElement? FindStartNode(JsonElement definition)
     {
@@ -381,7 +402,7 @@ public class ObjectService
                 throw new InvalidOperationException($"Missing required fields: {string.Join(", ", missing)}");
         }
 
-        // Validate required documents
+        // Validate required documents (by name — caller must provide matching doc name + assetId)
         if (data.TryGetProperty("requiredDocuments", out var docs) && docs.GetArrayLength() > 0)
         {
             var missing = new List<string>();
