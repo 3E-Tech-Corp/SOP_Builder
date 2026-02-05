@@ -1,0 +1,44 @@
+name: Fix SQL Login
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: self-hosted
+    steps:
+      - name: Grant IIS App Pool access to SQL Server
+        shell: powershell
+        run: |
+          $appPoolUser = "IIS APPPOOL\sop.synthia.bot"
+          
+          # Create SQL login for the app pool identity
+          $sql = @"
+          IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = '$appPoolUser')
+          BEGIN
+              CREATE LOGIN [$appPoolUser] FROM WINDOWS;
+              PRINT 'Login created';
+          END
+          ELSE
+              PRINT 'Login already exists';
+          
+          USE [SOP_Builder];
+          IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '$appPoolUser')
+          BEGIN
+              CREATE USER [$appPoolUser] FOR LOGIN [$appPoolUser];
+              PRINT 'User created';
+          END
+          ELSE
+              PRINT 'User already exists';
+          
+          ALTER ROLE db_datareader ADD MEMBER [$appPoolUser];
+          ALTER ROLE db_datawriter ADD MEMBER [$appPoolUser];
+          PRINT 'Roles assigned: db_datareader, db_datawriter';
+          "@
+          
+          Invoke-Sqlcmd -Query $sql -ServerInstance "localhost"
+          Write-Host "SQL permissions configured for $appPoolUser"
+          
+          # Verify
+          $verify = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT dp.name, dp.type_desc FROM sys.database_principals dp WHERE dp.name LIKE 'IIS%';" -ServerInstance "localhost"
+          $verify | Format-Table
