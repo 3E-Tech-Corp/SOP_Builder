@@ -27,9 +27,11 @@ jobs:
           $prodConfig = Join-Path $apiPath "appsettings.Production.json"
           
           if (!(Test-Path $prodConfig)) {
+            $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
             $bytes = New-Object byte[] 32
-            [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+            $rng.GetBytes($bytes)
             $jwtKey = [Convert]::ToBase64String($bytes)
+            $rng.Dispose()
             
             $json = @"
           {

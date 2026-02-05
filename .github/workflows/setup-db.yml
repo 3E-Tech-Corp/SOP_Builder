@@ -34,9 +34,11 @@ jobs:
           
           if (!(Test-Path $prodConfig)) {
             # Generate a random JWT key
+            $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
             $bytes = New-Object byte[] 32
-            [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+            $rng.GetBytes($bytes)
             $jwtKey = [Convert]::ToBase64String($bytes)
+            $rng.Dispose()
             
             $config = @{
               ConnectionStrings = @{
