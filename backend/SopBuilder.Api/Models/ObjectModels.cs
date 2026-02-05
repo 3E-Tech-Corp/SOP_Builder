@@ -120,6 +120,8 @@ public class ExecuteActionResponse
     public ObjectDetailDto Object { get; set; } = new();
     public AuditEntryDto AuditEntry { get; set; } = new();
     public List<NotificationPreview>? Notifications { get; set; }
+    public bool AutoRouted { get; set; }
+    public string? AutoRoutedTo { get; set; }
 }
 
 public class NotificationPreview

@@ -12,6 +12,9 @@ builder.Services.AddSingleton<SopService>();
 builder.Services.AddSingleton<AuditService>();
 builder.Services.AddSingleton<ObjectService>();
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<ListCodeService>();
+builder.Services.AddSingleton<DocumentTypeService>();
+builder.Services.AddSingleton<EventService>();
 
 // Asset Management (scoped — per-request lifetime)
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();

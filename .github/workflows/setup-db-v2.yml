@@ -1,0 +1,42 @@
+name: Setup Database v2 (List Codes, Doc Types, Events)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run v2 SQL Schema
+        shell: powershell
+        run: |
+          Write-Host "Running 002-list-codes-doctypes-events.sql on SQL Server..."
+          Invoke-Sqlcmd -InputFile "backend\SopBuilder.Api\Database\002-list-codes-doctypes-events.sql" -ServerInstance "localhost" -Verbose
+          Write-Host "v2 Schema created successfully!"
+
+      - name: Verify Tables
+        shell: powershell
+        run: |
+          $result = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT COUNT(*) as TableCount FROM sys.tables;" -ServerInstance "localhost"
+          Write-Host "Total tables in SOP_Builder: $($result.TableCount)"
+
+          Write-Host ""
+          Write-Host "=== New Tables ==="
+          $tables = @('ListCodes', 'ListCodeItems', 'DocumentTypes', 'EventTypes', 'NotificationRules')
+          foreach ($t in $tables) {
+            $exists = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT CASE WHEN EXISTS(SELECT * FROM sys.tables WHERE name='$t') THEN 1 ELSE 0 END AS Exists;" -ServerInstance "localhost"
+            $status = if ($exists.Exists -eq 1) { 'OK' } else { 'MISSING' }
+            Write-Host "  $t : $status"
+          }
+
+          Write-Host ""
+          Write-Host "=== Event Types ==="
+          $events = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT Code, Name FROM EventTypes ORDER BY Code;" -ServerInstance "localhost"
+          $events | Format-Table
+
+          Write-Host ""
+          Write-Host "=== Document Types ==="
+          $docTypes = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT Name, IsActive FROM DocumentTypes ORDER BY Name;" -ServerInstance "localhost"
+          $docTypes | Format-Table

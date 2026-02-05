@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Database, GripVertical } from 'lucide-react';
-import { PROPERTY_TYPES } from '../../utils/api';
+import { PROPERTY_TYPES, fetchListCodes } from '../../utils/api';
 
 export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
   const properties = schema?.properties || [];
-  const [newProp, setNewProp] = useState({ name: '', type: 'text', defaultValue: '', description: '' });
+  const [newProp, setNewProp] = useState({ name: '', type: 'text', defaultValue: '', description: '', listCodeName: '' });
   const [showAdd, setShowAdd] = useState(false);
+  const [listCodes, setListCodes] = useState([]);
+
+  useEffect(() => {
+    fetchListCodes().then(setListCodes).catch(() => {});
+  }, []);
 
   const addProperty = () => {
     if (!newProp.name.trim()) return;
@@ -58,16 +63,17 @@ export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
           <div className="space-y-0">
             {/* Header */}
             <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-700/50 mb-1">
-              <div className="col-span-3">Name</div>
+              <div className="col-span-2">Name</div>
               <div className="col-span-2">Type</div>
-              <div className="col-span-3">Default</div>
+              <div className="col-span-2">List Code</div>
+              <div className="col-span-2">Default</div>
               <div className="col-span-3">Description</div>
               <div className="col-span-1"></div>
             </div>
 
             {properties.map((prop, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center py-1 hover:bg-slate-700/20 rounded group">
-                <div className="col-span-3">
+                <div className="col-span-2">
                   <input
                     type="text" value={prop.name}
                     onChange={e => updateProperty(idx, { name: e.target.value })}
@@ -76,17 +82,30 @@ export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
                 </div>
                 <div className="col-span-2">
                   <select value={prop.type}
-                    onChange={e => updateProperty(idx, { type: e.target.value })}
+                    onChange={e => updateProperty(idx, { type: e.target.value, listCodeName: e.target.value !== 'select' ? '' : prop.listCodeName })}
                     className="w-full px-1 py-1 bg-transparent border border-transparent hover:border-slate-600 focus:border-synthia-500 rounded text-[11px] text-white focus:outline-none focus:bg-slate-700"
                   >
                     {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-2">
+                  {prop.type === 'select' ? (
+                    <select value={prop.listCodeName || ''}
+                      onChange={e => updateProperty(idx, { listCodeName: e.target.value })}
+                      className="w-full px-1 py-1 bg-transparent border border-transparent hover:border-slate-600 focus:border-synthia-500 rounded text-[11px] text-white focus:outline-none focus:bg-slate-700"
+                    >
+                      <option value="">-- pick list --</option>
+                      {listCodes.map(lc => <option key={lc.id} value={lc.name}>{lc.name}</option>)}
+                    </select>
+                  ) : (
+                    <span className="text-[11px] text-slate-600 px-1.5">-</span>
+                  )}
+                </div>
+                <div className="col-span-2">
                   <input
                     type="text" value={prop.defaultValue || ''}
                     onChange={e => updateProperty(idx, { defaultValue: e.target.value })}
-                    placeholder="—"
+                    placeholder="-"
                     className="w-full px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-600 focus:border-synthia-500 rounded text-[11px] text-slate-300 focus:outline-none focus:bg-slate-700"
                   />
                 </div>
@@ -94,7 +113,7 @@ export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
                   <input
                     type="text" value={prop.description || ''}
                     onChange={e => updateProperty(idx, { description: e.target.value })}
-                    placeholder="—"
+                    placeholder="-"
                     className="w-full px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-600 focus:border-synthia-500 rounded text-[11px] text-slate-400 focus:outline-none focus:bg-slate-700"
                   />
                 </div>
@@ -127,12 +146,23 @@ export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
               <div>
                 <label className="text-[10px] text-slate-400 block mb-0.5">Type</label>
                 <select value={newProp.type}
-                  onChange={e => setNewProp({ ...newProp, type: e.target.value })}
+                  onChange={e => setNewProp({ ...newProp, type: e.target.value, listCodeName: e.target.value !== 'select' ? '' : newProp.listCodeName })}
                   className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-synthia-500">
                   {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
+            {newProp.type === 'select' && (
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-0.5">List Code</label>
+                <select value={newProp.listCodeName || ''}
+                  onChange={e => setNewProp({ ...newProp, listCodeName: e.target.value })}
+                  className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-synthia-500">
+                  <option value="">-- pick a list code --</option>
+                  {listCodes.map(lc => <option key={lc.id} value={lc.name}>{lc.name} ({lc.itemCount} items)</option>)}
+                </select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] text-slate-400 block mb-0.5">Default Value</label>
@@ -154,7 +184,7 @@ export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
                 className="px-3 py-1 text-[11px] font-medium text-white bg-synthia-600 hover:bg-synthia-700 rounded transition-colors disabled:opacity-50">
                 Add Property
               </button>
-              <button onClick={() => { setShowAdd(false); setNewProp({ name: '', type: 'text', defaultValue: '', description: '' }); }}
+              <button onClick={() => { setShowAdd(false); setNewProp({ name: '', type: 'text', defaultValue: '', description: '', listCodeName: '' }); }}
                 className="px-3 py-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors">
                 Cancel
               </button>

@@ -219,6 +219,116 @@ export async function importSopJson(file) {
   });
 }
 
+// ── List Codes ──
+
+export async function fetchListCodes() {
+  const { data } = await api.get('/listcode');
+  return data;
+}
+
+export async function fetchListCode(id) {
+  const { data } = await api.get(`/listcode/${id}`);
+  return data;
+}
+
+export async function createListCode(name, description, items) {
+  const { data } = await api.post('/listcode', { name, description, items });
+  return data;
+}
+
+export async function updateListCode(id, payload) {
+  const { data } = await api.put(`/listcode/${id}`, payload);
+  return data;
+}
+
+export async function deleteListCode(id) {
+  await api.delete(`/listcode/${id}`);
+}
+
+export async function addListCodeItem(listCodeId, item) {
+  const { data } = await api.post(`/listcode/${listCodeId}/items`, item);
+  return data;
+}
+
+export async function updateListCodeItem(itemId, item) {
+  const { data } = await api.put(`/listcode/items/${itemId}`, item);
+  return data;
+}
+
+export async function deleteListCodeItem(itemId) {
+  await api.delete(`/listcode/items/${itemId}`);
+}
+
+export async function fetchListCodeItemsByName(name) {
+  const { data } = await api.get(`/listcode/by-name/${encodeURIComponent(name)}/items`);
+  return data;
+}
+
+// ── Document Types ──
+
+export async function fetchDocumentTypes(isActive) {
+  const params = {};
+  if (isActive !== undefined) params.isActive = isActive;
+  const { data } = await api.get('/documenttype', { params });
+  return data;
+}
+
+export async function createDocumentType(name, description) {
+  const { data } = await api.post('/documenttype', { name, description });
+  return data;
+}
+
+export async function updateDocumentType(id, payload) {
+  const { data } = await api.put(`/documenttype/${id}`, payload);
+  return data;
+}
+
+export async function deleteDocumentType(id) {
+  await api.delete(`/documenttype/${id}`);
+}
+
+// ── Events & Notification Rules ──
+
+export async function fetchEventTypes() {
+  const { data } = await api.get('/event/types');
+  return data;
+}
+
+export async function createEventType(code, name, description) {
+  const { data } = await api.post('/event/types', { code, name, description });
+  return data;
+}
+
+export async function updateEventType(id, payload) {
+  const { data } = await api.put(`/event/types/${id}`, payload);
+  return data;
+}
+
+export async function deleteEventType(id) {
+  await api.delete(`/event/types/${id}`);
+}
+
+export async function fetchNotificationRules(eventTypeCode) {
+  const params = {};
+  if (eventTypeCode) params.eventTypeCode = eventTypeCode;
+  const { data } = await api.get('/event/rules', { params });
+  return data;
+}
+
+export async function createNotificationRule(rule) {
+  const { data } = await api.post('/event/rules', rule);
+  return data;
+}
+
+export async function updateNotificationRule(id, payload) {
+  const { data } = await api.put(`/event/rules/${id}`, payload);
+  return data;
+}
+
+export async function deleteNotificationRule(id) {
+  await api.delete(`/event/rules/${id}`);
+}
+
 // ── Constants (shared with storage.js) ──
 
 export const AVAILABLE_ROLES = [

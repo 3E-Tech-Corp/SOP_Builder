@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Shield, FileText, ListChecks, GitFork } from 'lucide-react';
+import { X, Trash2, Plus, Shield, FileText, ListChecks, GitFork, Zap } from 'lucide-react';
 import useSopStore from '../../store/sopStore';
 import NotificationConfig, { EDGE_EVENTS } from './NotificationConfig';
-import { fetchSOPs, AVAILABLE_ROLES, PROPERTY_TYPES, DOCUMENT_TYPES } from '../../utils/api';
+import RuleBuilder from './RuleBuilder';
+import { fetchSOPs, fetchDocumentTypes, fetchListCodes, fetchEventTypes, AVAILABLE_ROLES, PROPERTY_TYPES, DOCUMENT_TYPES } from '../../utils/api';
 
 export default function PropertiesPanel({ nodes, edges, setNodes, setEdges, objectSchema }) {
   const selectedNode = useSopStore(s => s.selectedNode);
@@ -69,7 +70,9 @@ function NodeProperties({ node, objectSchema, onClose, onUpdate, onDelete }) {
   const isEnd = node.type === 'end';
   const isDecision = node.type === 'decision';
   const [allSOPs, setAllSOPs] = React.useState([]);
+  const [allEventTypes, setAllEventTypes] = React.useState([]);
   React.useEffect(() => { fetchSOPs().then(setAllSOPs).catch(() => {}); }, []);
+  React.useEffect(() => { fetchEventTypes().then(setAllEventTypes).catch(() => {}); }, []);
 
   return (
     <div className="w-80 bg-slate-800/50 border-l border-slate-700 flex flex-col flex-shrink-0 overflow-hidden">
@@ -154,6 +157,15 @@ function NodeProperties({ node, objectSchema, onClose, onUpdate, onDelete }) {
           </div>
         )}
 
+        {/* ── Events to Raise ── */}
+        {!isStart && (
+          <EventSelector
+            events={data.events || []}
+            eventTypes={allEventTypes}
+            onChange={(events) => onUpdate({ events })}
+          />
+        )}
+
         {/* Notifications (not for start) */}
         {!isStart && (
           <NotificationConfig
@@ -174,6 +186,12 @@ function EdgeProperties({ edge, nodes, objectSchema, onClose, onUpdate, onDelete
   const data = edge.data || {};
   const sourceNode = nodes.find(n => n.id === edge.source);
   const targetNode = nodes.find(n => n.id === edge.target);
+  const isFromDecision = sourceNode?.type === 'decision';
+  const [eventTypes, setEventTypes] = React.useState([]);
+
+  React.useEffect(() => {
+    fetchEventTypes().then(setEventTypes).catch(() => {});
+  }, []);
 
   return (
     <div className="w-80 bg-slate-800/50 border-l border-slate-700 flex flex-col flex-shrink-0 overflow-hidden">
@@ -194,7 +212,7 @@ function EdgeProperties({ edge, nodes, objectSchema, onClose, onUpdate, onDelete
         {/* Connection info */}
         <div className="text-[10px] text-slate-500 flex items-center gap-1">
           <span className="text-slate-300">{sourceNode?.data?.label || 'Source'}</span>
-          <span>→</span>
+          <span>&rarr;</span>
           <span className="text-slate-300">{targetNode?.data?.label || 'Target'}</span>
         </div>
 
@@ -210,6 +228,17 @@ function EdgeProperties({ edge, nodes, objectSchema, onClose, onUpdate, onDelete
           <textarea value={data.description || ''} onChange={e => onUpdate({ description: e.target.value })} rows={2}
             className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-synthia-500 resize-none" />
         </Field>
+
+        {/* ── Decision Rules (only for edges from Decision nodes) ── */}
+        {isFromDecision && (
+          <RuleBuilder
+            rules={data.rules || []}
+            ruleLogic={data.ruleLogic || 'and'}
+            objectSchema={objectSchema}
+            onChange={(rules) => onUpdate({ rules })}
+            onChangeLogic={(logic) => onUpdate({ ruleLogic: logic })}
+          />
+        )}
 
         {/* ── Required Roles ── */}
         <RoleSelector
@@ -228,6 +257,13 @@ function EdgeProperties({ edge, nodes, objectSchema, onClose, onUpdate, onDelete
         <RequiredDocumentsEditor
           documents={data.requiredDocuments || []}
           onChange={(docs) => onUpdate({ requiredDocuments: docs })}
+        />
+
+        {/* ── Events to Raise ── */}
+        <EventSelector
+          events={data.events || []}
+          eventTypes={eventTypes}
+          onChange={(events) => onUpdate({ events })}
         />
 
         {/* Notifications */}
@@ -380,10 +416,74 @@ function RequiredFieldsEditor({ fields, objectSchema, onChange }) {
   );
 }
 
+/* ── Event Selector (pick which events this edge/node raises) ── */
+function EventSelector({ events = [], eventTypes = [], onChange }) {
+  const [open, setOpen] = useState(false);
+
+  const toggle = (code) => {
+    if (events.includes(code)) {
+      onChange(events.filter(e => e !== code));
+    } else {
+      onChange([...events, code]);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Zap className="w-3.5 h-3.5 text-yellow-400" />
+        <span className="text-[11px] font-semibold text-slate-300">Events to Raise</span>
+        {events.length > 0 && (
+          <span className="text-[9px] text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded-full">{events.length}</span>
+        )}
+      </div>
+
+      {events.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {events.map(code => (
+            <span key={code} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-yellow-500/15 text-yellow-300 rounded border border-yellow-500/20">
+              {code}
+              <button onClick={() => toggle(code)} className="text-yellow-400 hover:text-yellow-200 ml-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button onClick={() => setOpen(!open)} className="text-[10px] text-synthia-400 hover:text-synthia-300 transition-colors">
+        {open ? '▾ Hide events' : '▸ Select events...'}
+      </button>
+
+      {open && eventTypes.length > 0 && (
+        <div className="mt-1 grid grid-cols-1 gap-1 p-2 bg-slate-800 rounded border border-slate-700 max-h-40 overflow-y-auto">
+          {eventTypes.filter(et => et.isActive).map(et => (
+            <label key={et.code} className="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer hover:text-white py-0.5">
+              <input type="checkbox" checked={events.includes(et.code)} onChange={() => toggle(et.code)}
+                className="w-2.5 h-2.5 rounded border-slate-600 text-synthia-500 focus:ring-synthia-500 bg-slate-700" />
+              <span className="font-mono text-synthia-400">{et.code}</span>
+              <span className="text-slate-500">- {et.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {events.length === 0 && (
+        <p className="text-[9px] text-slate-500 mt-0.5">No custom events. Standard events (status_changed, action_completed) fire automatically.</p>
+      )}
+    </div>
+  );
+}
+
 /* ── Required Documents Editor ── */
 function RequiredDocumentsEditor({ documents, onChange }) {
   const [newDoc, setNewDoc] = useState({ name: '', type: 'PDF', description: '' });
   const [showAdd, setShowAdd] = useState(false);
+  const [dbDocTypes, setDbDocTypes] = useState([]);
+
+  React.useEffect(() => {
+    fetchDocumentTypes(true).then(types => setDbDocTypes(types)).catch(() => {});
+  }, []);
 
   const addDoc = () => {
     if (!newDoc.name.trim()) return;
@@ -432,7 +532,10 @@ function RequiredDocumentsEditor({ documents, onChange }) {
           <div className="flex gap-1">
             <select value={newDoc.type} onChange={e => setNewDoc({ ...newDoc, type: e.target.value })}
               className="flex-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-synthia-500">
-              {DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {dbDocTypes.length > 0
+                ? dbDocTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)
+                : DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)
+              }
             </select>
           </div>
           <input type="text" value={newDoc.description} onChange={e => setNewDoc({ ...newDoc, description: e.target.value })}

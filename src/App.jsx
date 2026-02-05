@@ -7,6 +7,9 @@ import SopList from './components/SopList';
 import SopDesigner from './components/Designer/SopDesigner';
 import SopTester from './components/Tester/SopTester';
 import SettingsPage from './components/SettingsPage';
+import ListCodesPage from './components/Admin/ListCodesPage';
+import DocumentTypesPage from './components/Admin/DocumentTypesPage';
+import EventsPage from './components/Admin/EventsPage';
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
@@ -28,6 +31,9 @@ export default function App() {
                 <Route path="/designer/:id" element={<SopDesigner />} />
                 <Route path="/tester/:id" element={<SopTester />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin/list-codes" element={<ListCodesPage />} />
+                <Route path="/admin/document-types" element={<DocumentTypesPage />} />
+                <Route path="/admin/events" element={<EventsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

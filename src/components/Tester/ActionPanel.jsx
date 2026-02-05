@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Zap, ChevronRight, FileText, Shield, ShieldAlert, Upload, CheckCircle2,
   AlertTriangle, ListChecks, Paperclip, Eye,
@@ -7,6 +7,7 @@ import {
   getAvailableActions, getNodeById, calculateProgress,
   checkRoleAccess, checkRequiredFields, checkRequiredDocuments, checkStatusProperties,
 } from '../../utils/sopEngine';
+import { fetchListCodeItemsByName } from '../../utils/api';
 
 export default function ActionPanel({ sop, testObject, onTransition, currentRole }) {
   const [expandedAction, setExpandedAction] = useState(null);
@@ -253,18 +254,13 @@ export default function ActionPanel({ sop, testObject, onTransition, currentRole
                           </p>
                           <div className="space-y-1.5">
                             {action.requiredFields.map(field => (
-                              <div key={field.name}>
-                                <label className="text-[10px] text-slate-400 block mb-0.5">
-                                  {field.name} <span className="text-slate-500">({field.type})</span>
-                                </label>
-                                <input
-                                  type={field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'text'}
-                                  value={fieldValues[field.name] || ''}
-                                  onChange={e => setFieldValues(prev => ({ ...prev, [field.name]: e.target.value }))}
-                                  className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-synthia-500"
-                                  placeholder={`Enter ${field.name}`}
-                                />
-                              </div>
+                              <FieldInput
+                                key={field.name}
+                                field={field}
+                                value={fieldValues[field.name] || ''}
+                                onChange={val => setFieldValues(prev => ({ ...prev, [field.name]: val }))}
+                                objectSchema={sop?.objectSchema}
+                              />
                             ))}
                           </div>
                         </div>
@@ -334,6 +330,52 @@ export default function ActionPanel({ sop, testObject, onTransition, currentRole
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Smart field input that renders select-type properties as dropdowns with list code items.
+ */
+function FieldInput({ field, value, onChange, objectSchema }) {
+  const [listItems, setListItems] = useState([]);
+
+  // Check if this field is a select type with a listCodeName in the schema
+  const schemaProp = (objectSchema?.properties || []).find(p => p.name === field.name);
+  const isSelect = field.type === 'select' || schemaProp?.type === 'select';
+  const listCodeName = schemaProp?.listCodeName;
+
+  useEffect(() => {
+    if (isSelect && listCodeName) {
+      fetchListCodeItemsByName(listCodeName).then(setListItems).catch(() => {});
+    }
+  }, [isSelect, listCodeName]);
+
+  return (
+    <div>
+      <label className="text-[10px] text-slate-400 block mb-0.5">
+        {field.name} <span className="text-slate-500">({field.type})</span>
+      </label>
+      {isSelect && listItems.length > 0 ? (
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-synthia-500"
+        >
+          <option value="">Select {field.name}...</option>
+          {listItems.map(item => (
+            <option key={item.id} value={item.value}>{item.label}</option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'text'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-synthia-500"
+          placeholder={`Enter ${field.name}`}
+        />
+      )}
     </div>
   );
 }

@@ -9,12 +9,14 @@ public class ObjectService
 {
     private readonly string _connectionString;
     private readonly AuditService _auditService;
+    private readonly EventService _eventService;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public ObjectService(IConfiguration config, AuditService auditService)
+    public ObjectService(IConfiguration config, AuditService auditService, EventService eventService)
     {
         _connectionString = config.GetConnectionString("DefaultConnection")!;
         _auditService = auditService;
+        _eventService = eventService;
     }
 
     public async Task<ObjectDetailDto> Create(int sopId, CreateObjectRequest request, AuthContext auth)
@@ -66,6 +68,15 @@ public class ObjectService
             ActorApiKeyId = auth.ApiKeyId,
             ActorRole = auth.Role,
             PropertiesSnapshot = propertiesJson,
+        });
+
+        // Raise object_created event
+        await _eventService.RaiseEvent("object_created", new Dictionary<string, string>
+        {
+            { "objectName", request.Name },
+            { "objectId", id.ToString() },
+            { "sopId", sopId.ToString() },
+            { "toStatus", startLabel },
         });
 
         return await GetById(sopId, id) ?? throw new InvalidOperationException("Failed to create object");
@@ -276,7 +287,55 @@ public class ObjectService
             Notes = request.Notes,
         });
 
+        // Raise events
+        var eventContext = new Dictionary<string, string>
+        {
+            { "objectName", obj.Name ?? "" },
+            { "objectId", objectId.ToString() },
+            { "sopId", sopId.ToString() },
+            { "fromStatus", fromLabel ?? "" },
+            { "toStatus", toLabel },
+            { "action", actionLabel },
+        };
+
+        await _eventService.RaiseEvent("action_completed", eventContext);
+        await _eventService.RaiseEvent("status_changed", eventContext);
+
+        if (isEndNode)
+        {
+            await _eventService.RaiseEvent("object_completed", eventContext);
+        }
+
+        // Raise any custom events configured on the edge
+        if (edge.Value.TryGetProperty("data", out var edData) &&
+            edData.TryGetProperty("events", out var events))
+        {
+            foreach (var ev in events.EnumerateArray())
+            {
+                var code = ev.GetString();
+                if (!string.IsNullOrEmpty(code))
+                    await _eventService.RaiseEvent(code, eventContext);
+            }
+        }
+
         var updatedObj = await GetById(sopId, objectId);
+
+        // Auto-route through decision nodes
+        if (toNode.HasValue && GetNodeType(toNode.Value) == "decision" && !isEndNode)
+        {
+            var autoResult = await TryAutoRouteDecision(sopId, objectId, targetNodeId, definition, propertiesJson, auth);
+            if (autoResult != null)
+            {
+                return new ExecuteActionResponse
+                {
+                    Object = autoResult.Object,
+                    AuditEntry = auditEntry,
+                    Notifications = notifications,
+                    AutoRouted = true,
+                    AutoRoutedTo = autoResult.Object.CurrentStatus,
+                };
+            }
+        }
 
         return new ExecuteActionResponse
         {
@@ -284,6 +343,103 @@ public class ObjectService
             AuditEntry = auditEntry,
             Notifications = notifications,
         };
+    }
+
+    /// <summary>
+    /// Evaluate decision node rules on outgoing edges and auto-route if a match is found.
+    /// </summary>
+    private async Task<ExecuteActionResponse?> TryAutoRouteDecision(
+        int sopId, int objectId, string decisionNodeId, JsonElement definition, string propertiesJson, AuthContext auth)
+    {
+        var properties = !string.IsNullOrEmpty(propertiesJson)
+            ? JsonSerializer.Deserialize<Dictionary<string, object>>(propertiesJson, JsonOpts) ?? new()
+            : new Dictionary<string, object>();
+
+        // Find all outgoing edges from the decision node
+        if (!definition.TryGetProperty("edges", out var allEdges)) return null;
+
+        foreach (var candidateEdge in allEdges.EnumerateArray())
+        {
+            if (!candidateEdge.TryGetProperty("source", out var src) || src.GetString() != decisionNodeId) continue;
+            if (!candidateEdge.TryGetProperty("data", out var data)) continue;
+            if (!data.TryGetProperty("rules", out var rulesElement)) continue;
+
+            var rules = new List<DecisionRule>();
+            foreach (var ruleEl in rulesElement.EnumerateArray())
+            {
+                rules.Add(new DecisionRule
+                {
+                    PropertyName = ruleEl.TryGetProperty("propertyName", out var pn) ? pn.GetString() ?? "" : "",
+                    Operator = ruleEl.TryGetProperty("operator", out var op) ? op.GetString() ?? "equals" : "equals",
+                    TargetValue = ruleEl.TryGetProperty("targetValue", out var tv) ? tv.GetString() ?? "" : "",
+                });
+            }
+
+            if (rules.Count == 0) continue;
+
+            var logic = data.TryGetProperty("ruleLogic", out var rl) ? rl.GetString() ?? "and" : "and";
+
+            if (EvaluateRules(rules, properties, logic))
+            {
+                // Auto-route through this edge
+                var edgeId = candidateEdge.GetProperty("id").GetString()!;
+                try
+                {
+                    var result = await ExecuteAction(sopId, objectId, edgeId, new ExecuteActionRequest(), auth);
+                    return result;
+                }
+                catch
+                {
+                    // If auto-routing fails, just stop here
+                    return null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Evaluate a set of decision rules against object properties.
+    /// </summary>
+    private static bool EvaluateRules(List<DecisionRule> rules, Dictionary<string, object> properties, string logic)
+    {
+        if (rules.Count == 0) return false;
+
+        foreach (var rule in rules)
+        {
+            var propValue = properties.TryGetValue(rule.PropertyName, out var val) ? val?.ToString() ?? "" : "";
+            var match = EvaluateRule(rule, propValue);
+
+            if (logic == "or" && match) return true;
+            if (logic == "and" && !match) return false;
+        }
+
+        return logic == "and"; // all matched
+    }
+
+    private static bool EvaluateRule(DecisionRule rule, string propValue)
+    {
+        var target = rule.TargetValue;
+
+        return rule.Operator switch
+        {
+            "equals" => string.Equals(propValue, target, StringComparison.OrdinalIgnoreCase),
+            "not_equals" => !string.Equals(propValue, target, StringComparison.OrdinalIgnoreCase),
+            "contains" => propValue.Contains(target, StringComparison.OrdinalIgnoreCase),
+            "starts_with" => propValue.StartsWith(target, StringComparison.OrdinalIgnoreCase),
+            "greater_than" => double.TryParse(propValue, out var pv) && double.TryParse(target, out var tv1) && pv > tv1,
+            "less_than" => double.TryParse(propValue, out var pv2) && double.TryParse(target, out var tv2) && pv2 < tv2,
+            "in_list" => target.Split(',').Select(s => s.Trim()).Contains(propValue, StringComparer.OrdinalIgnoreCase),
+            _ => false,
+        };
+    }
+
+    private class DecisionRule
+    {
+        public string PropertyName { get; set; } = "";
+        public string Operator { get; set; } = "equals";
+        public string TargetValue { get; set; } = "";
     }
 
     // ── Private helpers ──
