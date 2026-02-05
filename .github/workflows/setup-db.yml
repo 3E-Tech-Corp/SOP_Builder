@@ -1,0 +1,95 @@
+name: Setup Database
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SQL Schema
+        shell: powershell
+        run: |
+          Write-Host "Running 001-initial-schema.sql on SQL Server..."
+          Invoke-Sqlcmd -InputFile "backend\SopBuilder.Api\Database\001-initial-schema.sql" -ServerInstance "localhost" -TrustServerCertificate -Verbose
+          Write-Host "Schema created successfully!"
+
+      - name: Generate BCrypt Hash and Update Admin
+        shell: powershell
+        run: |
+          # Use the .NET backend to generate proper BCrypt hash
+          cd backend\SopBuilder.Api
+          dotnet restore
+          
+          # Create a quick console script to hash the password
+          $script = @'
+          using BCrypt.Net;
+          var hash = BCrypt.Net.BCrypt.HashPassword("SopBuilder123!");
+          Console.WriteLine(hash);
+          '@
+          
+          $script | Out-File -FilePath "_hash.csx" -Encoding UTF8
+          
+          # Use dotnet-script or just compile inline
+          $hash = dotnet run --project . -- --hash-password "SopBuilder123!" 2>$null
+          
+          if (-not $hash) {
+            # Fallback: generate hash via PowerShell + .NET
+            Add-Type -Path "bin\Release\net8.0\BCrypt.Net-Next.dll" -ErrorAction SilentlyContinue
+            if (-not $?) {
+              dotnet publish -c Release -o _publish --nologo --verbosity quiet
+              Add-Type -Path "_publish\BCrypt.Net-Next.dll"
+            }
+            $hash = [BCrypt.Net.BCrypt]::HashPassword("SopBuilder123!")
+          }
+          
+          Write-Host "Generated BCrypt hash: $hash"
+          
+          $sql = "USE [SOP_Builder]; UPDATE [dbo].[Users] SET PasswordHash = '$hash' WHERE Email = 'admin@sopbuilder.com';"
+          Invoke-Sqlcmd -Query $sql -ServerInstance "localhost" -TrustServerCertificate
+          Write-Host "Admin password hash updated!"
+
+      - name: Create appsettings.Production.json
+        shell: powershell
+        run: |
+          $apiPath = "F:\New_WWW\sop.synthia.bot\API"
+          $prodConfig = Join-Path $apiPath "appsettings.Production.json"
+          
+          if (!(Test-Path $prodConfig)) {
+            # Generate a random JWT key
+            $bytes = New-Object byte[] 32
+            [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+            $jwtKey = [Convert]::ToBase64String($bytes)
+            
+            $config = @{
+              ConnectionStrings = @{
+                DefaultConnection = "Server=localhost;Database=SOP_Builder;Trusted_Connection=true;TrustServerCertificate=true;"
+              }
+              Jwt = @{
+                Key = $jwtKey
+                Issuer = "SopBuilder"
+                Audience = "SopBuilderUsers"
+              }
+              Storage = @{
+                LocalPath = "F:\uploads"
+                Type = "local"
+              }
+            } | ConvertTo-Json -Depth 3
+            
+            $config | Out-File -FilePath $prodConfig -Encoding UTF8
+            Write-Host "Created appsettings.Production.json with generated JWT key"
+          } else {
+            Write-Host "appsettings.Production.json already exists - skipping"
+          }
+
+      - name: Verify
+        shell: powershell
+        run: |
+          $result = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT COUNT(*) as TableCount FROM sys.tables;" -ServerInstance "localhost" -TrustServerCertificate
+          Write-Host "Tables in SOP_Builder: $($result.TableCount)"
+          
+          $users = Invoke-Sqlcmd -Query "USE [SOP_Builder]; SELECT Email, Role FROM Users;" -ServerInstance "localhost" -TrustServerCertificate
+          Write-Host "Users:"
+          $users | Format-Table
