@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Workflow, LayoutGrid, HelpCircle } from 'lucide-react';
+import { Workflow, LayoutGrid, HelpCircle, Settings, User } from 'lucide-react';
+import useAuthStore from '../store/authStore';
 import Toast from './Toast';
 
 export default function Layout({ children }) {
@@ -8,6 +9,8 @@ export default function Layout({ children }) {
   const isHome = location.pathname === '/';
   const isDesigner = location.pathname.startsWith('/designer');
   const isTester = location.pathname.startsWith('/tester');
+  const isSettings = location.pathname === '/settings';
+  const user = useAuthStore(s => s.user);
 
   return (
     <div className="flex flex-col h-screen bg-slate-900 text-gray-100">
@@ -32,6 +35,22 @@ export default function Layout({ children }) {
 
           <div className="flex items-center gap-2">
             <HowItWorks />
+            <Link
+              to="/settings"
+              className={`flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors ${
+                isSettings
+                  ? 'bg-synthia-500/20 text-synthia-400'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+            </Link>
+            {user && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs text-slate-400">{user.name}</span>
+              </div>
+            )}
           </div>
         </div>
       </nav>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Trash2, Plus, Shield, FileText, ListChecks, GitFork } from 'lucide-react';
 import useSopStore from '../../store/sopStore';
 import NotificationConfig, { EDGE_EVENTS } from './NotificationConfig';
-import { loadSOPs, AVAILABLE_ROLES, PROPERTY_TYPES, DOCUMENT_TYPES } from '../../utils/storage';
+import { fetchSOPs, AVAILABLE_ROLES, PROPERTY_TYPES, DOCUMENT_TYPES } from '../../utils/api';
 
 export default function PropertiesPanel({ nodes, edges, setNodes, setEdges, objectSchema }) {
   const selectedNode = useSopStore(s => s.selectedNode);
@@ -68,7 +68,8 @@ function NodeProperties({ node, objectSchema, onClose, onUpdate, onDelete }) {
   const isStart = node.type === 'start';
   const isEnd = node.type === 'end';
   const isDecision = node.type === 'decision';
-  const allSOPs = loadSOPs();
+  const [allSOPs, setAllSOPs] = React.useState([]);
+  React.useEffect(() => { fetchSOPs().then(setAllSOPs).catch(() => {}); }, []);
 
   return (
     <div className="w-80 bg-slate-800/50 border-l border-slate-700 flex flex-col flex-shrink-0 overflow-hidden">

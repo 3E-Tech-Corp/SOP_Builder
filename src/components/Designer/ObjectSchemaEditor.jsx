@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Database, GripVertical } from 'lucide-react';
-import { PROPERTY_TYPES } from '../../utils/storage';
+import { PROPERTY_TYPES } from '../../utils/api';
 
 export default function ObjectSchemaEditor({ schema, onChange, onClose }) {
   const properties = schema?.properties || [];

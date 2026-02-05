@@ -6,7 +6,7 @@ import {
 } from '@xyflow/react';
 import dagre from 'dagre';
 import { Save, LayoutGrid, ArrowLeft, Play, AlertTriangle, CheckCircle, Database } from 'lucide-react';
-import { loadSOP, saveSOP, PROPERTY_TYPES } from '../../utils/storage';
+import { fetchSOP, updateSOP, PROPERTY_TYPES } from '../../utils/api';
 import { validateSOP } from '../../utils/sopEngine';
 import useSopStore from '../../store/sopStore';
 import StartNode from './nodes/StartNode';
@@ -61,14 +61,34 @@ function DesignerInner() {
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [showSchema, setShowSchema] = useState(false);
 
-  const sop = useMemo(() => loadSOP(id), [id]);
+  const [sop, setSop] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(sop?.nodes || []);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(
-    (sop?.edges || []).map(e => ({ ...e, type: 'action' }))
-  );
-  const [objectSchema, setObjectSchema] = useState(sop?.objectSchema || { properties: [] });
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [objectSchema, setObjectSchema] = useState({ properties: [] });
   const [validation, setValidation] = useState(null);
+
+  // Load SOP from API
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchSOP(id);
+        if (cancelled) return;
+        setSop(data);
+        const def = data.definition || {};
+        setNodes(def.nodes || []);
+        setEdges((def.edges || []).map(e => ({ ...e, type: 'action' })));
+        setObjectSchema(def.objectSchema || { properties: [] });
+      } catch {
+        if (!cancelled) addToast({ type: 'error', message: 'Failed to load SOP' });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   // Sync selection state with actual node/edge data
   const selectedNode = useSopStore(s => s.selectedNode);
@@ -92,6 +112,14 @@ function DesignerInner() {
     }
   }, [edges]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-slate-400">Loading...</p>
+      </div>
+    );
+  }
+
   if (!sop) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -103,52 +131,52 @@ function DesignerInner() {
     );
   }
 
-  const onConnect = useCallback((params) => {
+  const onConnect = (params) => {
     setEdges(eds => addEdge({
       ...params, type: 'action',
       data: { label: '', description: '', requiredRoles: [], requiredDocuments: [], requiredFields: [] },
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#475569' },
     }, eds));
-  }, [setEdges]);
+  };
 
-  const onDragOver = useCallback((event) => {
+  const onDragOver = (event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-  }, []);
+  };
 
-  const onDrop = useCallback(
-    (event) => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (!type || !reactFlowInstance) return;
-      if (type === 'start' && nodes.some(n => n.type === 'start')) {
-        addToast({ type: 'error', message: 'Only one Start node allowed per SOP' });
-        return;
-      }
-      const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      setNodes(nds => [...nds, {
-        id: `${type}-${crypto.randomUUID().slice(0, 8)}`,
-        type,
-        position,
-        data: { ...nodeDefaults[type] },
-      }]);
-    },
-    [reactFlowInstance, nodes, setNodes, addToast]
-  );
+  const onDrop = (event) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData('application/reactflow');
+    if (!type || !reactFlowInstance) return;
+    if (type === 'start' && nodes.some(n => n.type === 'start')) {
+      addToast({ type: 'error', message: 'Only one Start node allowed per SOP' });
+      return;
+    }
+    const position = reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    setNodes(nds => [...nds, {
+      id: `${type}-${crypto.randomUUID().slice(0, 8)}`,
+      type,
+      position,
+      data: { ...nodeDefaults[type] },
+    }]);
+  };
 
-  const onNodeClick = useCallback((_, node) => setSelectedNode(node), [setSelectedNode]);
-  const onEdgeClick = useCallback((_, edge) => setSelectedEdge(edge), [setSelectedEdge]);
-  const onPaneClick = useCallback(() => clearSelection(), [clearSelection]);
+  const onNodeClick = (_, node) => setSelectedNode(node);
+  const onEdgeClick = (_, edge) => setSelectedEdge(edge);
+  const onPaneClick = () => clearSelection();
 
-  const handleSave = () => {
-    const updated = {
-      ...sop,
+  const handleSave = async () => {
+    const definition = {
       objectSchema,
       nodes: nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: n.data })),
       edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, data: e.data })),
     };
-    saveSOP(updated);
-    addToast({ type: 'success', message: `Saved "${sop.name}"` });
+    try {
+      await updateSOP(sop.id, { name: sop.name, description: sop.description, definition });
+      addToast({ type: 'success', message: `Saved "${sop.name}"` });
+    } catch (err) {
+      addToast({ type: 'error', message: err.response?.data?.error || 'Failed to save' });
+    }
   };
 
   const handleAutoLayout = () => {

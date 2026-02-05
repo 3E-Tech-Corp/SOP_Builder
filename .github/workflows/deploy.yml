@@ -19,9 +19,16 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build Backend
+        shell: powershell
+        run: |
+          cd backend\SopBuilder.Api
+          dotnet publish --configuration Release --output ..\..\publish-backend
+
       - name: Deploy to IIS
         shell: powershell
         run: |
           .\Deployment\deploy-iis.ps1 `
             -SiteName "${{ env.SITE_NAME }}" `
+            -BackendSource "publish-backend" `
             -FrontendSource "dist"

@@ -2,3 +2,15 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+publish-backend/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/
+*.swp
